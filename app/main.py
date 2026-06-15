@@ -1,8 +1,10 @@
+import os
+from dotenv import load_dotenv
+load_dotenv()
 from fastapi import FastAPI
 
 from app.chat.router import chatRouter
 from app.core.config import settings
-
 
 fastApi = FastAPI(
     title=settings.APP_TITLE,

@@ -16,6 +16,9 @@ class Settings(BaseSettings):
     APP_TITLE: str = "AI Note Backend"
     APP_VERSION: str = "0.1.0"
 
-    model_config = SettingsConfigDict(env_file=".env")
+    # Database (Supabase / Local PostgreSQL)
+    DATABASE_URL: str | None = None
+
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 settings = Settings()

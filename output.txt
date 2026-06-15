@@ -1,0 +1,3 @@
+Connecting to Supabase PostgreSQL (single attempt)...
+❌ Connection failed: connection failed: connection to server at "198.18.0.115", port 5432 failed: FATAL:  (ECIRCUITBREAKER) too many authentication failures, new connections are temporarily blocked
+connection to server at "198.18.0.115", port 5432 failed: FATAL:  (ECIRCUITBREAKER) too many authentication failures, new connections are temporarily blocked

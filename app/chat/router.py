@@ -8,5 +8,5 @@ chatRouter = APIRouter(prefix="/chat", tags=["chat"])
 
 @chatRouter.post("", response_model=ChatResponse)
 async def chat(request: ChatRequest):
-    answer = await chat_llm(request.message)
-    return ChatResponse(answer=answer)
+    data = await chat_llm(request.message)
+    return ChatResponse(answer=data["reply"], tasks=data["tasks"])
