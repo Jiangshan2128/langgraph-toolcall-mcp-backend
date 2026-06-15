@@ -53,8 +53,6 @@ Decide whether any of your long-term memory should be updated:
 - If tasks are mentioned, update the task list by calling UpdateMemory with update_type `task`.
 - If the user has specified preferences for how tasks should be planned, update the instructions by calling UpdateMemory with update_type `instructions`.
 
-Err on the side of updating the task list. No need to ask for explicit permission.
-
 Respond naturally to the user after a tool call was made to save memories, or if no tool call was made."""
 
 TRUSTCALL_INSTRUCTION = """Reflect on the following interaction.
