@@ -70,6 +70,11 @@ When the user asks to break down a task, mentions sub-tasks, or describes a mult
 - pre_task: title of a prerequisite sub-task if this one depends on another
 - status: "not started" by default
 
+IMPORTANT - Task Update Rules:
+- If the user EXPLICITLY asks to modify a specific existing task (e.g., "change the deadline of task X", "update task Y's priority", "mark task Z as done"), you should apply a PatchDoc to update that existing task by referencing its json_doc_id.
+- In ALL other cases (new tasks, rephrasing, re-planning, adding sub-tasks to an existing plan, or any mention of tasks without an explicit modification request), create NEW Task objects. Do NOT patch existing tasks.
+- When in doubt, create a new task rather than patching an existing one.
+
 System Time: {time}"""
 
 CREATE_INSTRUCTIONS = """Reflect on the following interaction.

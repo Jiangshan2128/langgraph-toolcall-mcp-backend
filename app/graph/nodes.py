@@ -135,10 +135,6 @@ def _create_extractor_update_node(
             )
         )
 
-        print("=== updated_messages start ===")
-        for msg in updated_messages:
-            msg.pretty_print()
-        print("=== updated_messages end ===")
         result = await extractor.ainvoke(
             {"messages": updated_messages, "existing": existing_memories}
         )

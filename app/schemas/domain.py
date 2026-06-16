@@ -29,6 +29,7 @@ class Task(BaseModel):
     priority: Literal["P0", "P1", "P2"] = Field(
         default="P1", description="P0 = urgent today, P1 = important, P2 = routine"
     )
+    time: str = Field(default="", description="when to start the task, e.g. 'today' or 'next week'")
     deadline: Optional[str] = Field(
         default=None,
         description="Deadline as YYYY-MM-DD or descriptive text",
