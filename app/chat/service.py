@@ -1,10 +1,10 @@
 import json
 
-from langchain_core.messages import AIMessage, AIMessageChunk, HumanMessage
+from langchain_core.messages import AIMessageChunk, HumanMessage
 
 from app.agents.config import Configuration
 from app.graph.builder import graph, store
-from app.store.memory import get_tasks, delete_task as _delete_task, update_task as _update_task
+from app.store.memory import get_tasks
 
 
 async def chat_llm(message: str, user_id: str = "default") -> dict:
@@ -22,18 +22,6 @@ async def chat_llm(message: str, user_id: str = "default") -> dict:
 
 
 TYPING_DELAY = 0.03  # 每个 token 之间的延迟（秒），0 = 无延迟，0.03 ≈ 打字机感（暂未启用）
-
-
-def delete_task(key: str, user_id: str = "default") -> list[dict]:
-    """从 store 中删除指定 task，返回更新后的完整任务列表。"""
-    _delete_task(store, user_id, key)
-    return get_tasks(store, user_id)
-
-
-def update_task(key: str, user_id: str = "default", updates: dict = None) -> list[dict]:
-    """更新 store 中指定 task 的部分字段，返回更新后的完整任务列表。"""
-    _update_task(store, user_id, key, updates)
-    return get_tasks(store, user_id)
 
 
 async def chat_llm_stream(message: str, user_id: str = "default"):

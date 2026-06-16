@@ -5,17 +5,7 @@ class ChatRequest(BaseModel):
     message: str = Field(..., min_length=1, description="用户消息")
     user_id: str = Field(default="default", description="用户标识")
 
+
 class ChatResponse(BaseModel):
     answer: str = Field(..., description="AI 自然语言回复")
     tasks: list[dict] = Field(default_factory=list, description="当前用户的任务列表")
-
-
-class DeleteTaskRequest(BaseModel):
-    key: str = Field(..., description="要删除的 task 的 store key")
-    user_id: str = Field(default="default", description="用户标识")
-
-
-class UpdateTaskRequest(BaseModel):
-    key: str = Field(..., description="要更新的 task 的 store key")
-    user_id: str = Field(default="default", description="用户标识")
-    updates: dict = Field(..., description="要更新的字段，如 {\"status\": \"done\", \"priority\": \"P0\"}")

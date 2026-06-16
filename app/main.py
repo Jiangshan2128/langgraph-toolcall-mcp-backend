@@ -9,6 +9,7 @@ from fastapi import FastAPI
 from app.chat.router import chatRouter
 from app.core.config import settings
 from app.graph.builder import pool
+from app.tasks.router import taskRouter
 
 
 @asynccontextmanager
@@ -28,6 +29,7 @@ fastApi = FastAPI(
 )
 
 fastApi.include_router(chatRouter, prefix="/api/v1")
+fastApi.include_router(taskRouter, prefix="/api/v1")
 
 @fastApi.get("/")
 async def root():

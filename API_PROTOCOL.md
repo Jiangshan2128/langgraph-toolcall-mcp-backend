@@ -203,8 +203,8 @@ interface ChatResponse {
 
 ```typescript
 interface DeleteTaskRequest {
-  key: string;        // 必填，要删除的 task 的 store key
-  user_id?: string;   // 可选，默认 "default"
+  key: string;        // URL 路径参数，task 的 store key
+  user_id?: string;   // 查询参数，默认 "default"
 }
 ```
 
@@ -212,9 +212,9 @@ interface DeleteTaskRequest {
 
 ```typescript
 interface UpdateTaskRequest {
-  key: string;        // 必填，要更新的 task 的 store key
-  user_id?: string;   // 可选，默认 "default"
-  updates: Partial<Task>;  // 必填，要更新的字段
+  key: string;        // URL 路径参数，task 的 store key
+  user_id?: string;   // 查询参数，默认 "default"
+  updates: Partial<Task>;  // 请求体，要更新的字段
 }
 ```
 
@@ -222,22 +222,20 @@ interface UpdateTaskRequest {
 
 ## 4. 删除任务
 
-### `DELETE /chat/task`
+### `DELETE /tasks/{key}`
 
 删除指定 key 的 task。
 
-**Request Body:**
+**Path Parameters:**
 
-```json
-{
-  "key": "abc123",
-  "user_id": "default"
-}
-```
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `key` | string | ✅ | 要删除的 task 在 store 中的 key |
+
+**Query Parameters:**
 
 | 字段 | 类型 | 必填 | 默认值 | 说明 |
 |---|---|---|---|---|
-| `key` | string | ✅ | — | 要删除的 task 在 store 中的 key |
 | `user_id` | string | ❌ | `"default"` | 用户标识 |
 
 **Response (200):**
@@ -276,10 +274,8 @@ interface UpdateTaskRequest {
 ```javascript
 // ---------- 删除任务 ----------
 async function deleteTask(key, userId = "default") {
-  const response = await fetch("/api/v1/chat/task", {
+  const response = await fetch(`/api/v1/tasks/${key}?user_id=${userId}`, {
     method: "DELETE",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ key, user_id: userId }),
   });
 
   if (!response.ok) {
@@ -292,10 +288,10 @@ async function deleteTask(key, userId = "default") {
 
 // ---------- 更新任务 ----------
 async function updateTask(key, updates, userId = "default") {
-  const response = await fetch("/api/v1/chat/task", {
+  const response = await fetch(`/api/v1/tasks/${key}?user_id=${userId}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ key, user_id: userId, updates }),
+    body: JSON.stringify({ updates }),
   });
 
   if (!response.ok) {
@@ -344,16 +340,26 @@ function TaskCard({ task, onTasksChange }) {
 
 ## 5. 更新任务
 
-### `PATCH /chat/task`
+### `PATCH /tasks/{key}`
 
 更新指定 task 的部分字段（增量合并，不传的字段保持不变）。
+
+**Path Parameters:**
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `key` | string | ✅ | 要更新的 task 在 store 中的 key |
+
+**Query Parameters:**
+
+| 字段 | 类型 | 必填 | 默认值 | 说明 |
+|---|---|---|---|---|
+| `user_id` | string | ❌ | `"default"` | 用户标识 |
 
 **Request Body:**
 
 ```json
 {
-  "key": "abc123",
-  "user_id": "default",
   "updates": {
     "status": "done",
     "priority": "P0"
@@ -361,11 +367,9 @@ function TaskCard({ task, onTasksChange }) {
 }
 ```
 
-| 字段 | 类型 | 必填 | 默认值 | 说明 |
-|---|---|---|---|---|
-| `key` | string | ✅ | — | 要更新的 task 在 store 中的 key |
-| `user_id` | string | ❌ | `"default"` | 用户标识 |
-| `updates` | object | ✅ | — | 要更新的字段键值对，如 `{"status": "done"}` |
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `updates` | object | ✅ | 要更新的字段键值对，如 `{"status": "done"}` |
 
 **Response (200):**
 
