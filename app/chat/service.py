@@ -10,8 +10,10 @@ from app.store.memory import get_tasks, delete_task as _delete_task, update_task
 async def chat_llm(message: str, user_id: str = "default") -> dict:
     """Invoke the LangGraph agent and return reply + tasks."""
     print("[chat_llm] called")
+    config = {"configurable": {"thread_id": user_id}}
     result = await graph.ainvoke(
         {"messages": [HumanMessage(content=message)]},
+        config=config,
         context=Configuration(user_id=user_id),
     )
     reply = result["messages"][-1].content
@@ -37,6 +39,7 @@ def update_task(key: str, user_id: str = "default", updates: dict = None) -> lis
 async def chat_llm_stream(message: str, user_id: str = "default"):
     """Stream the LangGraph agent output via SSE."""
     streamed_text = ""
+    config = {"configurable": {"thread_id": user_id}}
 
     # 立即推送连接确认，防止前端/代理因长时间无数据而超时
     yield {"event": "connected", "data": ""}
@@ -45,6 +48,7 @@ async def chat_llm_stream(message: str, user_id: str = "default"):
     try:
         async for msg, _ in graph.astream(
             {"messages": [HumanMessage(content=message)]},
+            config=config,
             context=Configuration(user_id=user_id),
             stream_mode="messages",
         ):

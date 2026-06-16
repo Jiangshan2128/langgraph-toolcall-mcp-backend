@@ -19,6 +19,7 @@ dependencies = [
     "deepagents>=0.6.7",
     "tavily-python>=0.7.25",
     "langgraph-checkpoint-postgres>=3.1.0",
+    "psycopg[pool]>=3.2.0",
 ]
 
 [project.optional-dependencies]

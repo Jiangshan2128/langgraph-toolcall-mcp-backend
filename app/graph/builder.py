@@ -1,5 +1,7 @@
 import logging
 
+from langgraph.checkpoint.memory import MemorySaver
+from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from langgraph.graph import START, END, MessagesState, StateGraph
 from langgraph.store.memory import InMemoryStore
 
@@ -15,7 +17,10 @@ from app.graph.routing import route_message
 
 logger = logging.getLogger(__name__)
 
+pool = None
 store = None
+checkpointer = None
+
 if settings.DATABASE_URL:
     try:
         from langgraph.store.postgres import PostgresStore
@@ -34,15 +39,19 @@ if settings.DATABASE_URL:
         )
         store = PostgresStore(conn=pool)
         store.setup()  # 幂等：自动建表
+        checkpointer = AsyncPostgresSaver(conn=pool)
+        checkpointer.setup()  # 幂等：自动建 checkpoint 表
         logger.info("Using PostgresStore (Supabase) for persistence.")
     except Exception as e:
         logger.warning(
-            "Failed to connect to Supabase PostgreSQL: %s. Falling back to InMemoryStore.", e
+            "Failed to connect to Supabase PostgreSQL: %s. Falling back to in-memory store.", e
         )
         store = InMemoryStore()
+        checkpointer = MemorySaver()
 else:
     store = InMemoryStore()
-    logger.info("DATABASE_URL not set. Using InMemoryStore.")
+    checkpointer = MemorySaver()
+    logger.info("DATABASE_URL not set. Using in-memory store and checkpointer.")
 
 builder = StateGraph(MessagesState, context_schema=Configuration)
 
@@ -57,5 +66,4 @@ builder.add_edge("update_tasks", "main_node")
 builder.add_edge("update_profile", "main_node")
 builder.add_edge("update_instructions", "main_node")
 
-# TODO: add inMemorySaver checkpointer
-graph = builder.compile(store=store)
+graph = builder.compile(store=store, checkpointer=checkpointer)
