@@ -1,4 +1,5 @@
 import json
+import logging
 
 from langchain_core.messages import AIMessageChunk, HumanMessage
 
@@ -6,10 +7,12 @@ from app.agents.config import Configuration
 from app.graph.builder import graph, store
 from app.store.memory import get_tasks
 
+logger = logging.getLogger(__name__)
+
 
 async def chat_llm(message: str, user_id: str = "default") -> dict:
     """Invoke the LangGraph agent and return reply + tasks."""
-    print("[chat_llm] called")
+    logger.info("chat_llm called user=%s", user_id)
     config = {"configurable": {"thread_id": user_id}}
     result = await graph.ainvoke(
         {"messages": [HumanMessage(content=message)]},
@@ -31,7 +34,7 @@ async def chat_llm_stream(message: str, user_id: str = "default"):
 
     # 立即推送连接确认，防止前端/代理因长时间无数据而超时
     yield {"event": "connected", "data": ""}
-    print(f"[chat_stream] started for user={user_id}")
+    logger.info("chat_stream started user=%s", user_id)
 
     try:
         async for msg, _ in graph.astream(
@@ -45,10 +48,10 @@ async def chat_llm_stream(message: str, user_id: str = "default"):
                 chunk = msg.content
                 if chunk:
                     streamed_text += chunk
-                    print(f"[chat_stream] chunk: {chunk!r}")
+                    logger.debug("chat_stream chunk user=%s chunk=%r", user_id, chunk)
                     yield {"event": "message", "data": chunk}
     except Exception as exc:
-        print(f"[chat_stream] graph error: {exc}")
+        logger.exception("chat_stream graph error user=%s", user_id)
         yield {"event": "error", "data": str(exc)}
         return
 
@@ -57,8 +60,8 @@ async def chat_llm_stream(message: str, user_id: str = "default"):
         tasks = get_tasks(store, user_id)
         yield {"event": "tasks", "data": json.dumps(tasks)}
     except Exception as exc:
-        print(f"[chat_stream] get_tasks error: {exc}")
+        logger.exception("chat_stream get_tasks error user=%s", user_id)
         yield {"event": "tasks", "data": "[]"}
 
     yield {"event": "done", "data": ""}
-    print(f"[chat_stream] finished for user={user_id} text_len={len(streamed_text)}")
+    logger.info("chat_stream finished user=%s text_len=%d", user_id, len(streamed_text))
