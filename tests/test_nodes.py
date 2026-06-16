@@ -24,19 +24,16 @@ def test_route_message_registry_matches_worker_nodes():
 
 
 def test_route_message_dispatches_known_types():
-    store = InMemoryStore()
     for update_type, node in ROUTE_REGISTRY.items():
         state = _make_state_with_tool_call(update_type)
-        assert route_message(state, store=store) == node
+        assert route_message(state) == node
 
 
 def test_route_message_ends_when_no_tool_calls():
-    store = InMemoryStore()
     state = {"messages": [AIMessage(content="hello")]}
-    assert route_message(state, store=store) == END
+    assert route_message(state) == END
 
 
 def test_route_message_defaults_to_end_for_unknown_type():
-    store = InMemoryStore()
     state = _make_state_with_tool_call("unknown")
-    assert route_message(state, store=store) == END
+    assert route_message(state) == END
