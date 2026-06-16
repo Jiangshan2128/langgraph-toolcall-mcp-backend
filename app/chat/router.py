@@ -23,10 +23,10 @@ async def chat_stream(request: ChatRequest):
 
 @chatRouter.delete("/task")
 async def delete_task_endpoint(request: DeleteTaskRequest):
-    """删除指定 task。"""
+    """删除指定 task，返回更新后的完整任务列表。"""
     try:
-        delete_task(request.key, user_id=request.user_id)
-        return {"ok": True, "message": f"Task '{request.key}' deleted"}
+        tasks = delete_task(request.key, user_id=request.user_id)
+        return {"ok": True, "tasks": tasks}
     except KeyError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
@@ -35,10 +35,10 @@ async def delete_task_endpoint(request: DeleteTaskRequest):
 
 @chatRouter.patch("/task")
 async def update_task_endpoint(request: UpdateTaskRequest):
-    """更新指定 task 的部分字段。"""
+    """更新指定 task 的部分字段，返回更新后的完整任务列表。"""
     try:
-        updated = update_task(request.key, user_id=request.user_id, updates=request.updates)
-        return {"ok": True, "task": updated}
+        tasks = update_task(request.key, user_id=request.user_id, updates=request.updates)
+        return {"ok": True, "tasks": tasks}
     except KeyError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:

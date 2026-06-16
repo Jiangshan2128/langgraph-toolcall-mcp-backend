@@ -245,9 +245,23 @@ interface UpdateTaskRequest {
 ```json
 {
   "ok": true,
-  "message": "Task 'abc123' deleted"
+  "tasks": [
+    {
+      "key": "def456",
+      "title": "UI设计",
+      "description": "设计界面原型",
+      "assignee": null,
+      "priority": "P2",
+      "time": "",
+      "deadline": null,
+      "pre_task": null,
+      "status": "not started"
+    }
+  ]
 }
 ```
+
+> 删除后返回**完整任务列表**，前端直接替换即可，无需本地删除。
 
 **Error (404):** task 不存在
 
@@ -293,24 +307,24 @@ async function updateTask(key, updates, userId = "default") {
 }
 
 // ---------- 在 React 组件中使用 ----------
-function TaskCard({ task }) {
+function TaskCard({ task, onTasksChange }) {
   // task.key 就是从后端返回的 store key
 
   const handleDelete = async () => {
-    await deleteTask(task.key);
-    removeTaskFromList(task.key);       // 从列表中移除
+    const { tasks } = await deleteTask(task.key);
+    onTasksChange(tasks);   // 直接用返回的完整列表替换
   };
 
   const handleToggleDone = async () => {
-    const result = await updateTask(task.key, {
+    const { tasks } = await updateTask(task.key, {
       status: task.status === "done" ? "not started" : "done",
     });
-    replaceTaskInList(task.key, result.task); // 替换为更新后的 task
+    onTasksChange(tasks);   // 直接用返回的完整列表替换
   };
 
   const handleChangePriority = async (newPriority) => {
-    const result = await updateTask(task.key, { priority: newPriority });
-    replaceTaskInList(task.key, result.task);
+    const { tasks } = await updateTask(task.key, { priority: newPriority });
+    onTasksChange(tasks);   // 直接用返回的完整列表替换
   };
 
   return (
@@ -358,19 +372,34 @@ function TaskCard({ task }) {
 ```json
 {
   "ok": true,
-  "task": {
-    "key": "abc123",
-    "title": "需求分析",
-    "description": "整理产品需求文档",
-    "assignee": null,
-    "priority": "P0",
-    "time": "",
-    "deadline": null,
-    "pre_task": null,
-    "status": "done"
-  }
+  "tasks": [
+    {
+      "key": "abc123",
+      "title": "需求分析",
+      "description": "整理产品需求文档",
+      "assignee": null,
+      "priority": "P0",
+      "time": "",
+      "deadline": null,
+      "pre_task": null,
+      "status": "done"
+    },
+    {
+      "key": "def456",
+      "title": "UI设计",
+      "description": "设计界面原型",
+      "assignee": null,
+      "priority": "P2",
+      "time": "",
+      "deadline": null,
+      "pre_task": null,
+      "status": "not started"
+    }
+  ]
 }
 ```
+
+> 更新后返回**完整任务列表**，前端直接替换即可，无需本地合并。
 
 **Error (404):** task 不存在
 
