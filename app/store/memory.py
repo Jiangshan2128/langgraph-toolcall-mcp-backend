@@ -26,9 +26,9 @@ def put_profile(store: BaseStore, user_id: str, data: dict, key: str | None = No
 
 
 def get_tasks(store: BaseStore, user_id: str) -> list[dict]:
-    """Return all task memories for a user."""
+    """Return all task memories for a user, with store key injected."""
     items = store.search(_namespace(TASK_NS, user_id))
-    return [item.value for item in items]
+    return [{"key": item.key, **item.value} for item in items]
 
 
 def put_tasks(store: BaseStore, user_id: str, items: list[tuple[str, dict]]):
@@ -36,6 +36,22 @@ def put_tasks(store: BaseStore, user_id: str, items: list[tuple[str, dict]]):
     namespace = _namespace(TASK_NS, user_id)
     for key, value in items:
         store.put(namespace, key, value)
+
+
+def delete_task(store: BaseStore, user_id: str, key: str):
+    """Delete a single task by key."""
+    store.delete(_namespace(TASK_NS, user_id), key)
+
+
+def update_task(store: BaseStore, user_id: str, key: str, updates: dict):
+    """Update a task by key, merging updates into the existing value."""
+    namespace = _namespace(TASK_NS, user_id)
+    item = store.get(namespace, key)
+    if item is None:
+        raise KeyError(f"Task with key '{key}' not found")
+    merged = {**item.value, **updates}
+    store.put(namespace, key, merged)
+    return merged
 
 
 def get_instructions(store: BaseStore, user_id: str) -> dict | None:

@@ -4,7 +4,7 @@ from langchain_core.messages import AIMessage, AIMessageChunk, HumanMessage
 
 from app.agents.config import Configuration
 from app.graph.builder import graph, store
-from app.store.memory import get_tasks
+from app.store.memory import get_tasks, delete_task as _delete_task, update_task as _update_task
 
 
 async def chat_llm(message: str, user_id: str = "default") -> dict:
@@ -20,6 +20,16 @@ async def chat_llm(message: str, user_id: str = "default") -> dict:
 
 
 TYPING_DELAY = 0.03  # 每个 token 之间的延迟（秒），0 = 无延迟，0.03 ≈ 打字机感（暂未启用）
+
+
+def delete_task(key: str, user_id: str = "default"):
+    """从 store 中删除指定 task。"""
+    _delete_task(store, user_id, key)
+
+
+def update_task(key: str, user_id: str = "default", updates: dict = None):
+    """更新 store 中指定 task 的部分字段。"""
+    return _update_task(store, user_id, key, updates)
 
 
 async def chat_llm_stream(message: str, user_id: str = "default"):
