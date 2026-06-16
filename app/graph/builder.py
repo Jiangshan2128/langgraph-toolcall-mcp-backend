@@ -14,6 +14,7 @@ from app.graph.nodes import (
     update_tasks,
 )
 from app.graph.routing import route_message
+from app.graph.state import AgentState
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +54,7 @@ else:
     checkpointer = MemorySaver()
     logger.info("DATABASE_URL not set. Using in-memory store and checkpointer.")
 
-builder = StateGraph(MessagesState, context_schema=Configuration)
+builder = StateGraph(AgentState, context_schema=Configuration)
 
 builder.add_node("main_node", main_node)
 builder.add_node("update_tasks", update_tasks)

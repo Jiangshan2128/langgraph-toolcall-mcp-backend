@@ -15,7 +15,7 @@ async def chat_llm(message: str, user_id: str = "default") -> dict:
     logger.info("chat_llm called user=%s", user_id)
     config = {"configurable": {"thread_id": user_id}}
     result = await graph.ainvoke(
-        {"messages": [HumanMessage(content=message)]},
+        {"messages": [HumanMessage(content=message)], "user_id": user_id},
         config=config,
         context=Configuration(user_id=user_id),
     )
@@ -38,7 +38,7 @@ async def chat_llm_stream(message: str, user_id: str = "default"):
 
     try:
         async for msg, _ in graph.astream(
-            {"messages": [HumanMessage(content=message)]},
+            {"messages": [HumanMessage(content=message)], "user_id": user_id},
             config=config,
             context=Configuration(user_id=user_id),
             stream_mode="messages",

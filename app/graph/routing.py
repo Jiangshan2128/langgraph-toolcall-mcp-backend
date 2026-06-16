@@ -1,6 +1,8 @@
 from typing import Literal
 
-from langgraph.graph import END, MessagesState
+from langgraph.graph import END
+
+from app.graph.state import AgentState
 
 
 ROUTE_REGISTRY: dict[str, str] = {
@@ -11,7 +13,7 @@ ROUTE_REGISTRY: dict[str, str] = {
 
 
 def route_message(
-    state: MessagesState,
+    state: AgentState,
 ) -> Literal[END, "update_tasks", "update_profile", "update_instructions"]:
     """Route the last assistant message to a worker node or END."""
     message = state["messages"][-1]

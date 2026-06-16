@@ -2,7 +2,6 @@ import uuid
 from datetime import datetime
 
 from langchain_core.messages import HumanMessage, SystemMessage, merge_message_runs
-from langgraph.graph import MessagesState
 from langgraph.runtime import Runtime
 from trustcall import create_extractor
 
@@ -13,6 +12,7 @@ from app.agents.config import (
     Configuration,
     get_model,
 )
+from app.graph.state import AgentState
 from app.schemas.domain import Profile, Task, UpdateMemory
 from app.store.memory import (
     get_instructions,
@@ -25,11 +25,11 @@ from app.store.memory import (
 
 
 async def main_node(
-    state: MessagesState,
+    state: AgentState,
     runtime: Runtime[Configuration],
 ):
     """Load memories and decide whether to update memory or respond."""
-    user_id = runtime.context.user_id
+    user_id = state.get("user_id") or runtime.context.user_id
 
     profile = get_profile(runtime.store, user_id)
     tasks = get_tasks(runtime.store, user_id)
@@ -51,11 +51,11 @@ async def main_node(
 
 
 async def update_profile(
-    state: MessagesState,
+    state: AgentState,
     runtime: Runtime[Configuration],
 ):
     """Update the user's profile memory using Trustcall."""
-    user_id = runtime.context.user_id
+    user_id = state.get("user_id") or runtime.context.user_id
     namespace = ("profile", user_id)
 
     existing_items = runtime.store.search(namespace)
@@ -115,10 +115,10 @@ def _create_extractor_update_node(
     )
 
     async def node(
-        state: MessagesState,
+        state: AgentState,
         runtime: Runtime[Configuration],
     ):
-        user_id = runtime.context.user_id
+        user_id = state.get("user_id") or runtime.context.user_id
         namespace = (namespace_prefix, user_id)
 
         existing_items = runtime.store.search(namespace)
@@ -147,7 +147,6 @@ def _create_extractor_update_node(
         put_tasks(runtime.store, user_id, updates)
 
         tool_calls = state["messages"][-1].tool_calls
-        print("_create_extractor_update_node tool_calls:", tool_calls)
         return {
             "messages": [
                 {
@@ -170,11 +169,11 @@ update_tasks = _create_extractor_update_node(
 
 
 async def update_instructions(
-    state: MessagesState,
+    state: AgentState,
     runtime: Runtime[Configuration],
 ):
     """Update user-specified planning instructions."""
-    user_id = runtime.context.user_id
+    user_id = state.get("user_id") or runtime.context.user_id
 
     existing = get_instructions(runtime.store, user_id)
     current = existing.get("memory") if existing else None
