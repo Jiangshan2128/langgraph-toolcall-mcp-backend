@@ -4,17 +4,18 @@ from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
 load_dotenv()
+
+logging.basicConfig(
+    level=os.getenv("LOG_LEVEL", "INFO").upper(),
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+)
+
 from fastapi import FastAPI
 
 from app.chat.router import chatRouter
 from app.core.config import settings
 from app.graph.builder import pool
 from app.tasks.router import taskRouter
-
-logging.basicConfig(
-    level=os.getenv("LOG_LEVEL", "INFO").upper(),
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):

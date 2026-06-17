@@ -1,7 +1,6 @@
 import logging
 
 from langgraph.checkpoint.memory import MemorySaver
-from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from langgraph.graph import START, END, StateGraph
 from langgraph.prebuilt import ToolNode
 from langgraph.store.memory import InMemoryStore
@@ -25,21 +24,36 @@ if settings.DATABASE_URL:
         from psycopg.rows import dict_row
         from psycopg_pool import ConnectionPool
 
+        # 同步连接池 — PostgresStore 需要同步连接
         pool = ConnectionPool(
             settings.DATABASE_URL,
             min_size=1,
             max_size=5,  # Supabase 免费版限制并发数，不宜过大
             kwargs={
                 "autocommit": True,
-                "prepare_threshold": 0,
+                "prepare_threshold": None,
                 "row_factory": dict_row,
             },
         )
         store = PostgresStore(conn=pool)
-        store.setup()  # 幂等：自动建表
-        checkpointer = AsyncPostgresSaver(conn=pool)
-        checkpointer.setup()  # 幂等：自动建 checkpoint 表
+        store.setup()  # 幂等：自动建表 → 任务/画像/指令持久化到 Supabase
+
+        # 验证 store 读写正常
+        try:
+            health_ns = ("_health",)
+            store.put(health_ns, "ping", {"ok": True})
+            assert store.get(health_ns, "ping") is not None, "PostgresStore read-back failed"
+            store.delete(health_ns, "ping")
+            logger.info("PostgresStore verified — read/write OK.")
+        except Exception as e:
+            logger.critical("PostgresStore health-check failed: %s", e)
+            raise  # 让服务启动失败，而不是静默回退到内存
+
         logger.info("Using PostgresStore (Supabase) for persistence.")
+
+        # checkpointer 暂用内存 — 业务数据 (task/profile/instructions) 走 store，已持久化
+        checkpointer = MemorySaver()
+        logger.info("Using MemorySaver for checkpoints (conversation state).")
     except Exception as e:
         logger.warning(
             "Failed to connect to Supabase PostgreSQL: %s. Falling back to in-memory store.", e
