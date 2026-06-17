@@ -19,6 +19,9 @@ class Settings(BaseSettings):
     # Database (Supabase / Local PostgreSQL)
     DATABASE_URL: str | None = None
 
+    # Tavily web search
+    TAVILY_API_KEY: str = ""
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 settings = Settings()

@@ -46,14 +46,16 @@ Here are the current user-specified preferences for updating tasks (may be empty
 {instructions}
 </instructions>
 
-Reason carefully about the user's messages below.
+You have access to the following tools:
+- update_profile: Call when the user provides personal information.
+- update_tasks: Call when the user mentions tasks, sub-tasks, deadlines, or asks to plan work.
+- update_instructions: Call when the user describes preferences for how tasks should be planned.
+- mark_task_done: Call when the user says a task is completed.
+- update_task_priority: Call when the user wants to change a task's priority.
+- delete_task_by_title: Call when the user explicitly asks to delete a task.
+- web_search: Call when the user asks about current events or facts that require up-to-date information.
 
-Decide whether any of your long-term memory should be updated:
-- If personal information was provided about the user, update the user's profile by calling UpdateMemory with update_type `profile`.
-- If tasks are mentioned, update the task list by calling UpdateMemory with update_type `task`.
-- If the user has specified preferences for how tasks should be planned, update the instructions by calling UpdateMemory with update_type `instructions`.
-
-Respond naturally to the user after a tool call was made to save memories, or if no tool call was made."""
+You may call multiple tools in parallel. After saving memories or fetching information, respond naturally to the user."""
 
 TRUSTCALL_INSTRUCTION = """Reflect on the following interaction.
 

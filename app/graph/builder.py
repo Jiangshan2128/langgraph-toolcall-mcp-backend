@@ -2,19 +2,16 @@ import logging
 
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
-from langgraph.graph import START, END, MessagesState, StateGraph
+from langgraph.graph import START, END, StateGraph
+from langgraph.prebuilt import ToolNode
 from langgraph.store.memory import InMemoryStore
 
 from app.agents.config import Configuration
 from app.core.config import settings
-from app.graph.nodes import (
-    main_node,
-    update_instructions,
-    update_profile,
-    update_tasks,
-)
-from app.graph.routing import route_message
+from app.graph.nodes import agent_node
+from app.graph.routing import route_after_agent
 from app.graph.state import AgentState
+from app.tools import ALL_TOOLS
 
 logger = logging.getLogger(__name__)
 
@@ -56,15 +53,21 @@ else:
 
 builder = StateGraph(AgentState, context_schema=Configuration)
 
-builder.add_node("main_node", main_node)
-builder.add_node("update_tasks", update_tasks)
-builder.add_node("update_profile", update_profile)
-builder.add_node("update_instructions", update_instructions)
+builder.add_node("agent", agent_node)
+builder.add_node("tools", ToolNode(ALL_TOOLS))
 
-builder.add_edge(START, "main_node")
-builder.add_conditional_edges("main_node", route_message)
-builder.add_edge("update_tasks", "main_node")
-builder.add_edge("update_profile", "main_node")
-builder.add_edge("update_instructions", "main_node")
+builder.add_edge(START, "agent")
+builder.add_conditional_edges("agent", route_after_agent)
+builder.add_edge("tools", "agent")
 
 graph = builder.compile(store=store, checkpointer=checkpointer)
+
+# 绘制并保存 graph 结构图
+try:
+    png_bytes = graph.get_graph(xray=1).draw_mermaid_png()
+    output_path = "graph.png"
+    with open(output_path, "wb") as f:
+        f.write(png_bytes)
+    logger.info("Graph diagram saved to %s", output_path)
+except Exception as e:
+    logger.warning("Failed to draw graph diagram: %s", e)

@@ -1,39 +1,28 @@
 from langchain_core.messages import AIMessage
 from langgraph.graph import END
-from langgraph.store.memory import InMemoryStore
 
-from app.graph.routing import ROUTE_REGISTRY, route_message
+from app.graph.routing import route_after_agent
 
 
-def _make_state_with_tool_call(update_type: str):
+def _make_state_with_tool_call(tool_name: str):
     message = AIMessage(
         content="",
         tool_calls=[
             {
                 "id": "call_1",
-                "name": "UpdateMemory",
-                "args": {"update_type": update_type},
+                "name": tool_name,
+                "args": {},
             }
         ],
     )
     return {"messages": [message]}
 
 
-def test_route_message_registry_matches_worker_nodes():
-    assert set(ROUTE_REGISTRY.values()) == {"update_tasks", "update_profile", "update_instructions"}
+def test_route_after_agent_goes_to_tools_when_tool_calls_present():
+    state = _make_state_with_tool_call("update_tasks")
+    assert route_after_agent(state) == "tools"
 
 
-def test_route_message_dispatches_known_types():
-    for update_type, node in ROUTE_REGISTRY.items():
-        state = _make_state_with_tool_call(update_type)
-        assert route_message(state) == node
-
-
-def test_route_message_ends_when_no_tool_calls():
+def test_route_after_agent_ends_when_no_tool_calls():
     state = {"messages": [AIMessage(content="hello")]}
-    assert route_message(state) == END
-
-
-def test_route_message_defaults_to_end_for_unknown_type():
-    state = _make_state_with_tool_call("unknown")
-    assert route_message(state) == END
+    assert route_after_agent(state) == END

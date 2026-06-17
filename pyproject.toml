@@ -20,6 +20,8 @@ dependencies = [
     "tavily-python>=0.7.25",
     "langgraph-checkpoint-postgres>=3.1.0",
     "psycopg[pool]>=3.2.0",
+    "pyppeteer>=0.0.25",
+    "ipython>=9.14.1",
 ]
 
 [project.optional-dependencies]

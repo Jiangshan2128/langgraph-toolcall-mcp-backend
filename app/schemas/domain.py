@@ -1,5 +1,4 @@
-from datetime import datetime
-from typing import Literal, Optional, TypedDict
+from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -41,9 +40,3 @@ class Task(BaseModel):
     status: Literal["not started", "in progress", "done", "archived"] = Field(
         default="not started", description="Current task status"
     )
-
-
-class UpdateMemory(TypedDict):
-    """Decision on what memory type to update."""
-
-    update_type: Literal["task", "profile", "instructions"]

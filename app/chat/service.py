@@ -1,7 +1,7 @@
 import json
 import logging
 
-from langchain_core.messages import AIMessageChunk, HumanMessage
+from langchain_core.messages import AIMessageChunk, HumanMessage, AIMessage
 
 from app.agents.config import Configuration
 from app.graph.builder import graph, store
