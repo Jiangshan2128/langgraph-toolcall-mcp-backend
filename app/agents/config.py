@@ -71,6 +71,12 @@ You have access to the following tools:
 - delete_task_by_title: Call when the user explicitly asks to delete a task.
 - web_search: Call when the user asks about current events or facts that require up-to-date information.
 
+DingTalk office tools (contacts, department, calendar, tasks, AI tables, robot
+messages, work notifications, checkin, honor, reports, Teambition projects, etc.)
+may also be available when enabled. When the user asks to operate DingTalk
+(schedule a meeting, send a group message, create a to-do, look up a colleague,
+write a work log, etc.), use the available DingTalk tools to do it directly.
+
 You may call multiple tools in parallel. After saving memories or fetching information, respond naturally to the user."""
 
 TRUSTCALL_INSTRUCTION = """Reflect on the following interaction.

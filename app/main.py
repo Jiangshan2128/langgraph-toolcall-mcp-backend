@@ -14,11 +14,14 @@ from fastapi import FastAPI
 
 from app.chat.router import chatRouter
 from app.core.config import settings
-from app.graph.builder import pool
+from app.graph.builder import init_graph, pool
 from app.tasks.router import taskRouter
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Load DingTalk MCP tools (if enabled) and rebuild the graph with the full
+    # tool set. Failures are logged inside init_graph and non-fatal.
+    await init_graph()
     yield
     if pool is not None:
         try:

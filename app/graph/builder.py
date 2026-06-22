@@ -65,16 +65,57 @@ else:
     checkpointer = MemorySaver()
     logger.info("DATABASE_URL not set. Using in-memory store and checkpointer.")
 
-builder = StateGraph(AgentState, context_schema=Configuration)
+def build_graph():
+    """Compile the agent graph from the current ALL_TOOLS.
 
-builder.add_node("agent", agent_node)
-builder.add_node("tools", ToolNode(ALL_TOOLS))
+    Factored out so the graph can be recompiled after DingTalk MCP tools are
+    loaded at app startup (ToolNode captures the tool list at compile time).
+    """
+    b = StateGraph(AgentState, context_schema=Configuration)
+    b.add_node("agent", agent_node)
+    b.add_node("tools", ToolNode(ALL_TOOLS))
+    b.add_edge(START, "agent")
+    b.add_conditional_edges("agent", route_after_agent)
+    b.add_edge("tools", "agent")
+    return b.compile(store=store, checkpointer=checkpointer)
 
-builder.add_edge(START, "agent")
-builder.add_conditional_edges("agent", route_after_agent)
-builder.add_edge("tools", "agent")
 
-graph = builder.compile(store=store, checkpointer=checkpointer)
+# Core graph (built at import with the static tool set). If DingTalk MCP is
+# enabled, `init_graph()` (called from the FastAPI lifespan) extends ALL_TOOLS
+# and reassigns `graph`. Consumers should access `builder.graph` (module attr),
+# not bind the value at import, to see the post-startup instance.
+graph = build_graph()
+
+
+async def init_graph():
+    """Load DingTalk MCP tools and rebuild the graph with the full tool set.
+
+    Called once during app startup. Failures are logged and non-fatal: the core
+    graph stays in place.
+    """
+    global graph
+    from app.tools.dingtalk import load_dingtalk_tools
+
+    dt_tools = await load_dingtalk_tools()
+    if not dt_tools:
+        return
+
+    existing = {t.name for t in ALL_TOOLS}
+    added = 0
+    for t in dt_tools:
+        if t.name not in existing:
+            ALL_TOOLS.append(t)
+            existing.add(t.name)
+            added += 1
+
+    if added:
+        graph = build_graph()
+        logger.info(
+            "Graph rebuilt with DingTalk MCP tools (added=%d, total=%d).",
+            added,
+            len(ALL_TOOLS),
+        )
+
 
 # 绘制并保存 graph 结构图
 try:
@@ -85,3 +126,4 @@ try:
     logger.info("Graph diagram saved to %s", output_path)
 except Exception as e:
     logger.warning("Failed to draw graph diagram: %s", e)
+

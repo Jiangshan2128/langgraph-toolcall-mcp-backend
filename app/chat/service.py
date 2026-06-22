@@ -5,7 +5,7 @@ from langchain_core.messages import AIMessageChunk, HumanMessage, AIMessage
 
 from app.agents.config import Configuration
 from app.core.thread import resolve_thread_id
-from app.graph.builder import graph, store
+from app.graph import builder
 from app.store.memory import get_tasks
 
 logger = logging.getLogger(__name__)
@@ -16,13 +16,13 @@ async def chat_llm(message: str, user_id: str = "default") -> dict:
     logger.info("chat_llm called user=%s", user_id)
     thread_id = resolve_thread_id(user_id)
     config = {"configurable": {"thread_id": thread_id}}
-    result = await graph.ainvoke(
+    result = await builder.graph.ainvoke(
         {"messages": [HumanMessage(content=message)], "user_id": user_id},
         config=config,
         context=Configuration(user_id=user_id),
     )
     reply = result["messages"][-1].content
-    tasks = get_tasks(store, user_id)
+    tasks = get_tasks(builder.store, user_id)
     return {"reply": reply, "tasks": tasks}
 
 
@@ -40,7 +40,7 @@ async def chat_llm_stream(message: str, user_id: str = "default"):
     logger.info("chat_stream started user=%s", user_id)
 
     try:
-        async for msg, _ in graph.astream(
+        async for msg, _ in builder.graph.astream(
             {"messages": [HumanMessage(content=message)], "user_id": user_id},
             config=config,
             context=Configuration(user_id=user_id),
@@ -60,7 +60,7 @@ async def chat_llm_stream(message: str, user_id: str = "default"):
 
     # 流结束后推送完整 task 列表
     try:
-        tasks = get_tasks(store, user_id)
+        tasks = get_tasks(builder.store, user_id)
         yield {"event": "tasks", "data": json.dumps(tasks)}
     except Exception as exc:
         logger.exception("chat_stream get_tasks error user=%s", user_id)

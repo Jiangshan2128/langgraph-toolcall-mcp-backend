@@ -22,6 +22,15 @@ class Settings(BaseSettings):
     # Tavily web search
     TAVILY_API_KEY: str = ""
 
+    # 钉钉服务端 MCP (stdio via `npx dingtalk-mcp`)
+    DINGTALK_MCP_ENABLED: bool = False
+    DINGTALK_CLIENT_ID: str = ""          # AppKey
+    DINGTALK_CLIENT_SECRET: str = ""      # AppSecret
+    DINGTALK_ACTIVE_PROFILES: str = "ALL"  # 功能模块，逗号分隔；ALL=全部
+    DINGTALK_AGENT_ID: str = ""           # 可选，应用 AgentId
+    ROBOT_CODE: str = ""                  # 可选，企业内部机器人编码
+    ROBOT_ACCESS_TOKEN: str = ""          # 可选，自定义群机器人 webhook access_token
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 settings = Settings()

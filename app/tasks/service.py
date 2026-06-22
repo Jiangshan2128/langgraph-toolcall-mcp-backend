@@ -3,7 +3,7 @@ import logging
 from langchain_core.messages import HumanMessage
 
 from app.core.thread import resolve_thread_id
-from app.graph.builder import graph, store
+from app.graph import builder
 from app.store.memory import delete_task as _delete_task
 from app.store.memory import get_tasks
 from app.store.memory import update_task as _update_task
@@ -26,7 +26,7 @@ def _notify_thread(user_id: str, text: str):
     try:
         thread_id = resolve_thread_id(user_id)
         config = {"configurable": {"thread_id": thread_id}}
-        graph.update_state(
+        builder.graph.update_state(
             config,
             {"messages": [HumanMessage(content=text)]},
         )
@@ -38,11 +38,11 @@ def _notify_thread(user_id: str, text: str):
 
 def delete_task(key: str, user_id: str = "default") -> list[dict]:
     """Delete a task and return the updated task list."""
-    tasks_before = get_tasks(store, user_id)
+    tasks_before = get_tasks(builder.store, user_id)
     task = next((t for t in tasks_before if t["key"] == key), None)
     title = task.get("title", "Unknown") if task else "Unknown"
 
-    _delete_task(store, user_id, key)
+    _delete_task(builder.store, user_id, key)
 
     _notify_thread(
         user_id,
@@ -50,14 +50,14 @@ def delete_task(key: str, user_id: str = "default") -> list[dict]:
         f"REST API by the user. It no longer exists in the task list. Do NOT "
         f"re-add it. If asked for the task list, report it as deleted.",
     )
-    return get_tasks(store, user_id)
+    return get_tasks(builder.store, user_id)
 
 
 def update_task(key: str, user_id: str = "default", updates: dict = None) -> list[dict]:
     """Update a task and return the updated task list."""
-    _update_task(store, user_id, key, updates or {})
+    _update_task(builder.store, user_id, key, updates or {})
 
-    after = get_tasks(store, user_id)
+    after = get_tasks(builder.store, user_id)
     task = next((t for t in after if t["key"] == key), None)
     title = task.get("title", "Unknown") if task else "Unknown"
 
