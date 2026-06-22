@@ -2,6 +2,7 @@ import logging
 
 from langchain_core.messages import HumanMessage
 
+from app.core.thread import resolve_thread_id
 from app.graph.builder import graph, store
 from app.store.memory import delete_task as _delete_task
 from app.store.memory import get_tasks
@@ -23,7 +24,8 @@ def _notify_thread(user_id: str, text: str):
     system prompt and underweight mid-thread system messages.
     """
     try:
-        config = {"configurable": {"thread_id": user_id}}
+        thread_id = resolve_thread_id(user_id)
+        config = {"configurable": {"thread_id": thread_id}}
         graph.update_state(
             config,
             {"messages": [HumanMessage(content=text)]},

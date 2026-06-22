@@ -4,6 +4,7 @@ import logging
 from langchain_core.messages import AIMessageChunk, HumanMessage, AIMessage
 
 from app.agents.config import Configuration
+from app.core.thread import resolve_thread_id
 from app.graph.builder import graph, store
 from app.store.memory import get_tasks
 
@@ -13,7 +14,8 @@ logger = logging.getLogger(__name__)
 async def chat_llm(message: str, user_id: str = "default") -> dict:
     """Invoke the LangGraph agent and return reply + tasks."""
     logger.info("chat_llm called user=%s", user_id)
-    config = {"configurable": {"thread_id": user_id}}
+    thread_id = resolve_thread_id(user_id)
+    config = {"configurable": {"thread_id": thread_id}}
     result = await graph.ainvoke(
         {"messages": [HumanMessage(content=message)], "user_id": user_id},
         config=config,
@@ -30,7 +32,8 @@ TYPING_DELAY = 0.03  # 每个 token 之间的延迟（秒），0 = 无延迟，0
 async def chat_llm_stream(message: str, user_id: str = "default"):
     """Stream the LangGraph agent output via SSE."""
     streamed_text = ""
-    config = {"configurable": {"thread_id": user_id}}
+    thread_id = resolve_thread_id(user_id)
+    config = {"configurable": {"thread_id": thread_id}}
 
     # 立即推送连接确认，防止前端/代理因长时间无数据而超时
     yield {"event": "connected", "data": ""}
