@@ -23,6 +23,26 @@ def _find_task_by_title(store: BaseStore, user_id: str, title: str) -> dict | No
     return None
 
 
+@tool("get_tasks")
+def get_tasks_tool(
+    state: Annotated[AgentState, InjectedState()],
+    store: Annotated[BaseStore, InjectedStore()],
+) -> str:
+    """Return the user's CURRENT complete task list from the store.
+
+    ALWAYS call this when the user asks to list, show, get, check, or query
+    their tasks (e.g. "get all tasks", "what are my tasks", "show task list").
+    Never answer task queries from conversation history — history may be stale
+    because tasks can be added, updated, or deleted outside the chat via REST.
+    """
+    user_id = _user_id(state)
+    tasks = get_tasks(store, user_id)
+    if not tasks:
+        return "No tasks found."
+    import json
+    return json.dumps(tasks, ensure_ascii=False, default=str)
+
+
 @tool
 def mark_task_done(
     title: str,
