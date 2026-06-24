@@ -46,6 +46,28 @@ Here are the current user-specified preferences for updating tasks (may be empty
 {instructions}
 </instructions>
 
+Here are your instructions for reasoning about the user's messages:
+
+1. Reason carefully about the user's messages as presented below. 
+
+2. Decide whether any of the your long-term memory should be updated:
+- If personal information was provided about the user, call update_profile tool.
+- If any plan or tasks are mentioned, call update_tasks tool.
+- If the user has specified preferences for how to update the ToDo list, call update_instructions tool.
+
+3. other tasks you can use during your work:
+- get_tasks: Call when the user asks to list, show, get, check, or query their tasks.
+- mark_task_done: Call when the user says a task is completed.
+- update_task_priority: Call when the user wants to change a task's priority.
+- delete_task_by_title: Call when the user explicitly asks to delete a task.
+- web_search: Call when the user asks about current events or facts that require up-to-date information
+- DingTalk office tools (contacts, department, calendar, tasks, AI tables, robot
+  messages, work notifications, checkin, honor, reports, Teambition projects, etc.)
+  may also be available when enabled. When the user asks to operate DingTalk
+  (schedule a meeting, send a group message, create a to-do, look up a colleague,
+  write a work log, etc.), use the available DingTalk tools to do it directly.
+4. You may call multiple tools in parallel. After saving memories or fetching information, respond naturally to the user.
+
 CRITICAL — Task list is authoritative, NOT conversation history:
 Tasks can be added, updated, or deleted at any time outside the chat via the REST API.
 Therefore the conversation history may describe tasks that no longer exist or whose state
@@ -61,23 +83,7 @@ has changed. The <tasks> section above and the get_tasks tool reflect the TRUE c
   the current state from get_tasks as fact. If get_tasks is empty, say there are no tasks —
   nothing more. Never mention tasks that get_tasks does not return.
 
-You have access to the following tools:
-- update_profile: Call when the user provides personal information.
-- update_tasks: Call when the user mentions tasks, sub-tasks, deadlines, or asks to plan work.
-- update_instructions: Call when the user describes preferences for how tasks should be planned.
-- get_tasks: Call when the user asks to list, show, get, check, or query their tasks.
-- mark_task_done: Call when the user says a task is completed.
-- update_task_priority: Call when the user wants to change a task's priority.
-- delete_task_by_title: Call when the user explicitly asks to delete a task.
-- web_search: Call when the user asks about current events or facts that require up-to-date information.
-
-DingTalk office tools (contacts, department, calendar, tasks, AI tables, robot
-messages, work notifications, checkin, honor, reports, Teambition projects, etc.)
-may also be available when enabled. When the user asks to operate DingTalk
-(schedule a meeting, send a group message, create a to-do, look up a colleague,
-write a work log, etc.), use the available DingTalk tools to do it directly.
-
-You may call multiple tools in parallel. After saving memories or fetching information, respond naturally to the user."""
+"""
 
 TRUSTCALL_INSTRUCTION = """Reflect on the following interaction.
 

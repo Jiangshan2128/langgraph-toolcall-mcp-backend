@@ -21,6 +21,9 @@ from langchain_core.messages import HumanMessage
 
 logger = logging.getLogger(__name__)
 
+TRANSCRIPT_TEMPLATE = """ below is the transcript of the audio delimited by double quotes, please reason the transcript carefully about the tasks and then update tasks.
+transcript: "{transcript}"
+"""
 
 class TranscriptionPrivateState(MessagesState):
     """Private state schema exclusively for the transcription subgraph."""
@@ -50,6 +53,8 @@ async def transcribe_node(state: TranscriptionPrivateState):
     except Exception as exc:
         logger.exception("Transcription failed")
         transcript = f"[Transcription failed: {exc}]"
+
+    transcript = TRANSCRIPT_TEMPLATE.format(transcript=transcript)
 
     return {"messages": HumanMessage(content=transcript)}
 

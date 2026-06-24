@@ -78,9 +78,7 @@ async def update_tasks(
     store: Annotated[BaseStore, InjectedStore()],
 ) -> str:
     """Update the user's task list memory based on the conversation.
-
-    Call this when the user mentions tasks, sub-tasks, deadlines, priorities,
-    or asks to plan/break down work.
+    Call this when the user mentions any plan or tasks,
     """
     user_id = _user_id(state)
     namespace = ("task", user_id)
