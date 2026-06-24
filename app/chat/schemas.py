@@ -2,8 +2,9 @@ from pydantic import BaseModel, Field
 
 
 class ChatRequest(BaseModel):
-    message: str = Field(..., min_length=1, description="用户消息")
+    message: str = Field(default="", description="用户消息")
     user_id: str = Field(default="default", description="用户标识")
+    language: str | None = Field(default=None, description="音频语言，如 'zh', 'en'")
 
 
 class ChatResponse(BaseModel):

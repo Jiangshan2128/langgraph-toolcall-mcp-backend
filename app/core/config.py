@@ -22,6 +22,12 @@ class Settings(BaseSettings):
     # Tavily web search
     TAVILY_API_KEY: str = ""
 
+    # Groq Whisper transcription (audio → text). Free tier.
+    # Get a key at https://console.groq.com/keys
+    GROQ_API_KEY: str = ""
+    GROQ_BASE_URL: str = "https://api.groq.com"
+    GROQ_TRANSCRIPTION_MODEL: str = "whisper-large-v3-turbo"
+
     # 钉钉服务端 MCP (stdio via `npx dingtalk-mcp`)
     DINGTALK_MCP_ENABLED: bool = False
     DINGTALK_CLIENT_ID: str = ""          # AppKey

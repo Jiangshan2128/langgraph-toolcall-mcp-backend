@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 # user_id -> (thread_id, last_active_monotonic)
 _sessions: dict[str, tuple[str, float]] = {}
 
-SESSION_TTL = 5 * 60  # 空闲超过 5 分钟则滚动生成新 thread_id
+SESSION_TTL = 1 * 60  # 空闲超过 5 分钟则滚动生成新 thread_id
 
 
 def resolve_thread_id(user_id: str = "default") -> str:

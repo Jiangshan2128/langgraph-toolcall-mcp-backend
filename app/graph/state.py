@@ -12,3 +12,6 @@ class AgentState(MessagesState, total=False):
 
     user_id: str
     update_type: Literal["task", "profile", "instructions"]
+    audio_bytes: bytes | None = None
+    audio_filename: str | None = None
+    audio_language: str | None = None

@@ -1,5 +1,6 @@
 import logging
 
+from langchain_core.messages import HumanMessage
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import START, END, StateGraph
 from langgraph.prebuilt import ToolNode
@@ -8,9 +9,10 @@ from langgraph.store.memory import InMemoryStore
 from app.agents.config import Configuration
 from app.core.config import settings
 from app.graph.nodes import agent_node
-from app.graph.routing import route_after_agent
+from app.graph.routing import route_after_agent, route_start
 from app.graph.state import AgentState
 from app.tools import ALL_TOOLS
+from app.transcription.graph import transcription_subgraph
 
 logger = logging.getLogger(__name__)
 
@@ -70,13 +72,31 @@ def build_graph():
 
     Factored out so the graph can be recompiled after DingTalk MCP tools are
     loaded at app startup (ToolNode captures the tool list at compile time).
+    
+    The graph includes:
+    - START → route_start (conditional): routes to transcription if audio present
+    - transcription subgraph: converts audio to text via Groq Whisper
+    - agent: main LLM agent
+    - tools: tool execution node
     """
     b = StateGraph(AgentState, context_schema=Configuration)
+    b.add_node("transcription", transcription_subgraph)
     b.add_node("agent", agent_node)
     b.add_node("tools", ToolNode(ALL_TOOLS))
-    b.add_edge(START, "agent")
+    
+    # Conditional start routing: transcription if audio present, else directly to agent
+    b.add_conditional_edges(START, route_start)
+    # b.add_edge(START, "agent")
+    
+    # After transcription, always go to agent
+    b.add_edge("transcription", "agent")
+    
+    # Agent routing: tools or end
     b.add_conditional_edges("agent", route_after_agent)
+    
+    # After tools, return to agent for summarization
     b.add_edge("tools", "agent")
+    
     return b.compile(store=store, checkpointer=checkpointer)
 
 
@@ -126,4 +146,3 @@ try:
     logger.info("Graph diagram saved to %s", output_path)
 except Exception as e:
     logger.warning("Failed to draw graph diagram: %s", e)
-
