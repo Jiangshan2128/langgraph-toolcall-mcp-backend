@@ -6,15 +6,14 @@ from langgraph.runtime import Runtime
 from app.agents.config import (
     MODEL_SYSTEM_MESSAGE,
     Configuration,
-    get_model,
 )
 from app.graph.state import AgentState
+from app.graph.tool_router import get_model_with_tools
 from app.store.memory import (
     get_instructions,
     get_profile,
     get_tasks,
 )
-from app.tools import ALL_TOOLS
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +35,7 @@ async def agent_node(
         instructions=instructions.get("memory", "") if instructions else "无",
     )
 
-    model = get_model().bind_tools(ALL_TOOLS)
+    model = await get_model_with_tools(state["messages"])
     try:
         response = await model.ainvoke(
             [SystemMessage(content=system_msg)] + state["messages"]

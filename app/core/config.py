@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     GLM_API_KEY: str = ""
     GLM_MODEL: str = "glm-4.5-air"
     GLM_BASE_URL: str = "https://open.bigmodel.cn/api/paas/v4/"
+    GLM_MAX_TOOLS: int = 0
 
     # App
     APP_TITLE: str = "AI Note Backend"

@@ -86,7 +86,6 @@ def build_graph():
     
     # Conditional start routing: transcription if audio present, else directly to agent
     b.add_conditional_edges(START, route_start)
-    # b.add_edge(START, "agent")
     
     # After transcription, always go to agent
     b.add_edge("transcription", "agent")
