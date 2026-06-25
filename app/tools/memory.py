@@ -1,3 +1,4 @@
+import logging
 import uuid
 from datetime import datetime
 from typing import Annotated
@@ -6,6 +7,7 @@ from langchain.tools import tool
 from langchain_core.messages import SystemMessage, merge_message_runs
 from langgraph.prebuilt.tool_node import InjectedState, InjectedStore
 from langgraph.store.base import BaseStore
+from langgraph.types import interrupt
 from trustcall import create_extractor
 
 from app.agents.config import (
@@ -23,6 +25,8 @@ from app.store.memory import (
     put_profile,
     put_tasks,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def _user_id(state: AgentState) -> str:
@@ -78,7 +82,8 @@ async def update_tasks(
     store: Annotated[BaseStore, InjectedStore()],
 ) -> str:
     """Update the user's task list memory based on the conversation.
-    Call this when the user mentions any plan or tasks,
+
+    Call this when the user mentions any plan or tasks.
     """
     user_id = _user_id(state)
     namespace = ("task", user_id)
@@ -107,13 +112,69 @@ async def update_tasks(
         {"messages": updated_messages, "existing": existing_memories}
     )
 
-    updates: list[tuple[str, dict]] = []
+    # ── Collect proposed changes BEFORE writing ──
+    proposed: list[dict] = []
     for response, metadata in zip(result["responses"], result["response_metadata"]):
         key = metadata.get("json_doc_id", str(uuid.uuid4()))
-        updates.append((key, response.model_dump(mode="json")))
+        action = metadata.get("json_doc_action", "insert")  # insert | update | delete
+        proposed.append(
+            {
+                "key": key,
+                "action": action,
+                "task": response.model_dump(mode="json"),
+            }
+        )
 
-    put_tasks(store, user_id, updates)
-    return f"Task memory updated ({len(updates)} task(s))."
+    if not proposed:
+        return "No task changes detected."
+
+    # ── HUMAN-IN-THE-LOOP: pause and ask for approval ──
+    logger.info("HITL interrupt — %d proposed task change(s) for user=%s", len(proposed), user_id)
+    approval: dict = interrupt(
+        {
+            "type": "task_update_approval",
+            "message": f"The agent wants to apply {len(proposed)} task change(s). "
+            f"Review and approve, edit, or reject each one.",
+            "proposed_updates": proposed,
+        }
+    )
+
+    if not approval.get("approved", False):
+        return f"Task updates rejected by the user ({len(proposed)} change(s) discarded)."
+
+    # ── Apply approved changes ──
+    rejected_keys: set[str] = set(approval.get("rejected_keys", []))
+    edited_tasks: dict[str, dict] = {
+        e["key"]: e["task"] for e in approval.get("edited_tasks", [])
+    }
+
+    upserts: list[tuple[str, dict]] = []
+    deleted_count = 0
+    for p in proposed:
+        key = p["key"]
+        if key in rejected_keys:
+            continue
+        if p["action"] == "delete":
+            from app.store.memory import delete_task as _del
+            _del(store, user_id, key)
+            deleted_count += 1
+            continue
+        task_data = edited_tasks.get(key, p["task"])
+        upserts.append((key, task_data))
+
+    if not upserts and deleted_count == 0:
+        return "All proposed task changes were rejected or edited away."
+
+    if upserts:
+        put_tasks(store, user_id, upserts)
+    logger.info(
+        "HITL approved — %d upsert(s), %d delete(s) for user=%s",
+        len(upserts), deleted_count, user_id,
+    )
+    return (
+        f"Task memory updated ({len(upserts)} upsert(s), {deleted_count} delete(s)) "
+        f"after human approval."
+    )
 
 
 @tool

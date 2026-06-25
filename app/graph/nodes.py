@@ -1,4 +1,6 @@
-from langchain_core.messages import SystemMessage
+import logging
+
+from langchain_core.messages import AIMessage, SystemMessage
 from langgraph.runtime import Runtime
 
 from app.agents.config import (
@@ -13,6 +15,8 @@ from app.store.memory import (
     get_tasks,
 )
 from app.tools import ALL_TOOLS
+
+logger = logging.getLogger(__name__)
 
 
 async def agent_node(
@@ -33,8 +37,17 @@ async def agent_node(
     )
 
     model = get_model().bind_tools(ALL_TOOLS)
-    response = await model.ainvoke(
-        [SystemMessage(content=system_msg)] + state["messages"]
-    )
-    return {"messages": [response]}
+    try:
+        response = await model.ainvoke(
+            [SystemMessage(content=system_msg)] + state["messages"]
+        )
+    except Exception as exc:
+        logger.exception("agent_node model.ainvoke failed for user=%s", user_id)
+        error_msg = (
+            "抱歉，模型服务暂时不可用，请稍后重试。"
+            if "BadRequestError" in type(exc).__name__ or "400" in str(exc)
+            else f"An error occurred: {exc}"
+        )
+        return {"messages": [AIMessage(content=error_msg)]}
 
+    return {"messages": [response]}
