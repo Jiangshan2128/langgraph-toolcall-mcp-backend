@@ -8,6 +8,7 @@ from langgraph.store.memory import InMemoryStore
 
 from app.agents.config import Configuration
 from app.core.config import settings
+from app.core.debug_utils import print_section
 from app.graph.nodes import agent_node, hitl_node
 from app.graph.routing import route_after_agent, route_after_tools, route_start
 from app.graph.state import AgentState
@@ -122,6 +123,7 @@ async def init_graph():
     from app.tools.dingtalk import load_dingtalk_tools
 
     dt_tools = await load_dingtalk_tools()
+    print_section(f"DingTalk MCP Tools {len(dt_tools)}")
     if not dt_tools:
         return
 

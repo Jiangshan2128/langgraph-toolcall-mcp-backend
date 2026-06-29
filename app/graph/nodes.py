@@ -166,6 +166,18 @@ async def hitl_node(
         upserts_count=len(upserts),
     )
 
-    return {
-        "messages": [HumanMessage(content=summary)],
-    }
+    # ── Build return messages ──
+    messages: list[HumanMessage] = [HumanMessage(content=summary)]
+    
+    # Check if user wants to submit tasks to DingTalk
+    if approval.get("submit_to_dingtalk", False):
+        DINGTALK_TASK_MANAGEMENT_TEMPLATE = """
+Based on the task changes below, you should sync relevant tasks to DingTalk to keep the user's DingTalk task list in sync.
+
+Here is the summary of task changes:
+{summary}
+"""
+        mcpPrompt = DINGTALK_TASK_MANAGEMENT_TEMPLATE.format(summary=summary)
+        messages.append(HumanMessage(content=mcpPrompt))
+    
+    return {"messages": messages}

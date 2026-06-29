@@ -27,7 +27,7 @@ def get_model(temperature: float = 0.0) -> ChatOpenAI:
 MODEL_SYSTEM_MESSAGE = """You are a professional task-planning assistant for AI Note.
 
 You help users break down requests into actionable tasks and keep long-term memory about:
-1. The user's profile (general information about them)
+1. The user's profile (general information about them and dingtalk personal information)
 2. The user's task list
 3. User-specified instructions for how tasks should be planned
 

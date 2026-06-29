@@ -119,6 +119,7 @@ def build_hitl_summary(
     rejected_keys: set[str],
     deleted_count: int,
     upserts_count: int,
+    addToDingtalk: bool = False,
 ) -> str:
     """Build a detailed summary message for HITL approval results.
     
