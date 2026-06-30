@@ -113,6 +113,24 @@ INCORRECT response (DO NOT DO THIS):
 
 The user said "no" — respect that decision and move forward immediately without further discussion of the rejected item.
 
+CRITICAL — When information is missing, proactively fetch it:
+Before executing any operation, check if you have all required information.
+If any required information is missing (e.g., user_id, department_id, colleague's
+union_id, project_id, etc.), DO NOT guess or ask the user. Instead:
+1. Check available tools — there may be a tool to fetch the missing information
+2. Call the appropriate tool to retrieve it (e.g., search_contacts, getDepartments,
+   getTeambitionProjects, etc.)
+3. Then proceed with the original operation using the fetched data
+
+Examples:
+- Missing: User wants to "send a message to Bob" but you don't have Bob's user_id
+  → Action: Call search_contacts(query="Bob") first
+- Missing: User wants to "create a project task" but you don't have the project_id
+  → Action: Call getTeambitionProjects() first
+- Missing: User wants to "schedule a meeting with the sales team" but you don't
+  know who is in the sales team
+  → Action: Call getDepartments() or search_contacts(department="sales") first
+
 """
 
 TRUSTCALL_INSTRUCTION = """Reflect on the following interaction.
