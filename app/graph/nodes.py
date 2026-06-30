@@ -25,7 +25,25 @@ from app.store.memory import (
     delete_task as _delete_task,
 )
 
+from app.tools.tool_search import get_deferred_tools_prompt_section
+
 logger = logging.getLogger(__name__)
+
+# Cached deferred-tool setup. Built once after DingTalk MCP tools are loaded,
+# then refreshed via refresh_deferred_setup().
+_DEFERRED_SETUP = None
+
+
+def get_deferred_setup_cached():
+    """Return the cached deferred-tool setup."""
+    global _DEFERRED_SETUP
+    return _DEFERRED_SETUP
+
+
+def refresh_deferred_setup(setup):
+    """Set the cached deferred-tool setup (called from init_graph)."""
+    global _DEFERRED_SETUP
+    _DEFERRED_SETUP = setup
 
 
 async def agent_node(
@@ -39,13 +57,20 @@ async def agent_node(
     tasks = get_tasks(runtime.store, user_id)
     instructions = get_instructions(runtime.store, user_id)
 
+    # Append deferred-tools section to the system prompt so the LLM knows
+    # about available-but-not-loaded DingTalk tools.
+    deferred_names = get_deferred_setup_cached().deferred_names if get_deferred_setup_cached() else frozenset()
+    deferred_section = get_deferred_tools_prompt_section(deferred_names)
     system_msg = MODEL_SYSTEM_MESSAGE.format(
         user_profile=profile or "未设置",
         tasks="\n".join(str(task) for task in tasks) or "无",
         instructions=instructions.get("memory", "") if instructions else "无",
+        deferred_tools=deferred_section,
     )
 
-    model = await get_model_with_tools(state["messages"])
+    model = get_model_with_tools(
+        promoted_names=state.get("promoted_tools"),
+    )
     try:
         response = await model.ainvoke(
             [SystemMessage(content=system_msg)] + state["messages"]

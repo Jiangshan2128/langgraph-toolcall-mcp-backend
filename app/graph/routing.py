@@ -29,13 +29,12 @@ def route_after_tools(
     state: AgentState,
 ) -> Literal["agent", "hitl_node"]:
     """Route to hitl_node if the last tool output contains task proposals, else back to agent."""
-    for m in reversed(state["messages"]):
-        if isinstance(m, ToolMessage) and m.name == "update_tasks":
-            try:
-                payload = json.loads(m.content)
-                if isinstance(payload, dict) and payload.get("type") == "task_proposals":
-                    return "hitl_node"
-            except (json.JSONDecodeError, TypeError):
-                pass
-            break  # only check the last update_tasks output
+    last = state["messages"][-1]
+    if isinstance(last, ToolMessage) and last.name == "update_tasks":
+        try:
+            payload = json.loads(last.content)
+            if isinstance(payload, dict) and payload.get("type") == "task_proposals":
+                return "hitl_node"
+        except (json.JSONDecodeError, TypeError):
+            pass
     return "agent"

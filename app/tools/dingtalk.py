@@ -104,6 +104,12 @@ async def load_dingtalk_tools() -> list[BaseTool]:
         )
         tools = await client.get_tools()
         _client = client
+
+        # Register each tool name as MCP so the deferred-tool-search system
+        # knows these tools should NOT be bound directly to the LLM.
+        from app.tools.tool_search import register_mcp_tools
+        register_mcp_tools(tools)
+
         logger.info(
             "Loaded %d DingTalk MCP tools: %s",
             len(tools),

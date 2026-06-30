@@ -127,6 +127,7 @@ async def init_graph():
     if not dt_tools:
         return
 
+    # DingTalk tools are already tagged as MCP inside load_dingtalk_tools().
     existing = {t.name for t in ALL_TOOLS}
     added = 0
     for t in dt_tools:
@@ -136,6 +137,15 @@ async def init_graph():
             added += 1
 
     if added:
+        from app.tools.tool_search import build_deferred_tool_setup
+        from app.graph.nodes import refresh_deferred_setup
+
+        setup = build_deferred_tool_setup(ALL_TOOLS)
+        if setup.tool_search_tool:
+            # Add tool_search to ALL_TOOLS so ToolNode can execute it
+            ALL_TOOLS.append(setup.tool_search_tool)
+            logger.info("tool_search added to ALL_TOOLS (deferred=%d)", len(setup.deferred_names))
+        refresh_deferred_setup(setup)
         graph = build_graph()
         logger.info(
             "Graph rebuilt with DingTalk MCP tools (added=%d, total=%d).",
