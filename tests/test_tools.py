@@ -2,7 +2,7 @@ from langgraph.store.memory import InMemoryStore
 
 from app.graph.state import AgentState
 from app.store.memory import put_tasks
-from app.tools.tasks import (
+from app.tools.core.tasks import (
     delete_task_by_title,
     mark_task_done,
     update_task_priority,

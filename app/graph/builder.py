@@ -120,7 +120,7 @@ async def init_graph():
     graph stays in place.
     """
     global graph
-    from app.tools.dingtalk import load_dingtalk_tools
+    from app.tools.community.dingtalk import load_dingtalk_tools
 
     dt_tools = await load_dingtalk_tools()
     print_section(f"DingTalk MCP Tools {len(dt_tools)}")
