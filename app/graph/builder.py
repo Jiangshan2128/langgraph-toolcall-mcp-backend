@@ -138,7 +138,7 @@ async def init_graph():
 
     if added:
         from app.tools.tool_search import build_deferred_tool_setup
-        from app.graph.nodes import refresh_deferred_setup
+        from app.graph.deferred_cache import refresh_deferred_setup
 
         setup = build_deferred_tool_setup(ALL_TOOLS)
         if setup.tool_search_tool:

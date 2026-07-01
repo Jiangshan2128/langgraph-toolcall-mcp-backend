@@ -15,76 +15,83 @@ from app.core.debug_utils import (
     print_proposed_tasks,
     print_approval_result,
 )
-from app.graph.state import AgentState
-from app.graph.tool_router import get_model_with_tools
-from app.store.memory import (
-    get_instructions,
-    get_profile,
-    get_tasks,
-    put_tasks,
-    delete_task as _delete_task,
+from app.graph.deferred_cache import (
+    get_deferred_setup_cached,
+    refresh_deferred_setup,
 )
-
-from app.tools.tool_search import get_deferred_tools_prompt_section
+from app.graph.middleware import (
+    ErrorHandlingMiddleware,
+    MemoryLoadMiddleware,
+    Pipeline,
+    SystemPromptMiddleware,
+    ToolBindingMiddleware,
+)
+from app.graph.state import AgentState
+from app.store.memory import (
+    delete_task as _delete_task,
+    put_tasks,
+)
 
 logger = logging.getLogger(__name__)
 
-# Cached deferred-tool setup. Built once after DingTalk MCP tools are loaded,
-# then refreshed via refresh_deferred_setup().
-_DEFERRED_SETUP = None
+
+# ======================================================================
+# Core handler (private)
+# ======================================================================
 
 
-def get_deferred_setup_cached():
-    """Return the cached deferred-tool setup."""
-    global _DEFERRED_SETUP
-    return _DEFERRED_SETUP
+async def _llm_invoke_handler(state, runtime, context):
+    """Core handler: invoke the LLM with the prepared model and system prompt.
+
+    Context keys read:
+        ``"system_message"`` — ``str`` (from ``SystemPromptMiddleware``)
+        ``"model"``          — ``ChatOpenAI`` (from ``ToolBindingMiddleware``)
+    """
+    model = context["model"]
+    system_msg = SystemMessage(content=context["system_message"])
+    response = await model.ainvoke([system_msg] + state["messages"])
+    return {"messages": [response]}
 
 
-def refresh_deferred_setup(setup):
-    """Set the cached deferred-tool setup (called from init_graph)."""
-    global _DEFERRED_SETUP
-    _DEFERRED_SETUP = setup
+# ======================================================================
+# Pipeline (built once at module load)
+# ======================================================================
+
+_agent_pipeline = Pipeline(
+    middlewares=[
+        # Order matters: outermost first, innermost last.
+        # Error handling MUST be outermost to catch everything.
+        ErrorHandlingMiddleware(),
+        MemoryLoadMiddleware(),
+        SystemPromptMiddleware(),
+        ToolBindingMiddleware(),
+    ],
+    core_handler=_llm_invoke_handler,
+)
+
+
+# ======================================================================
+# Public node functions
+# ======================================================================
 
 
 async def agent_node(
     state: AgentState,
     runtime: Runtime[Configuration],
 ):
-    """Load memories and decide which tools to call, if any."""
-    user_id = state.get("user_id") or runtime.context.user_id
+    """Load memories, build prompt, bind tools, and invoke the LLM.
 
-    profile = get_profile(runtime.store, user_id)
-    tasks = get_tasks(runtime.store, user_id)
-    instructions = get_instructions(runtime.store, user_id)
+    Implementation delegates to a middleware pipeline for separation of
+    concerns. Each middleware handles one aspect of the request lifecycle:
+    error handling, memory loading, system prompt construction, and tool
+    binding.
+    """
+    return await _agent_pipeline.run(state, runtime)
 
-    # Append deferred-tools section to the system prompt so the LLM knows
-    # about available-but-not-loaded DingTalk tools.
-    deferred_names = get_deferred_setup_cached().deferred_names if get_deferred_setup_cached() else frozenset()
-    deferred_section = get_deferred_tools_prompt_section(deferred_names)
-    system_msg = MODEL_SYSTEM_MESSAGE.format(
-        user_profile=profile or "未设置",
-        tasks="\n".join(str(task) for task in tasks) or "无",
-        instructions=instructions.get("memory", "") if instructions else "无",
-        deferred_tools=deferred_section,
-    )
 
-    model = get_model_with_tools(
-        promoted_names=state.get("promoted_tools"),
-    )
-    try:
-        response = await model.ainvoke(
-            [SystemMessage(content=system_msg)] + state["messages"]
-        )
-    except Exception as exc:
-        logger.exception("agent_node model.ainvoke failed for user=%s", user_id)
-        error_msg = (
-            "抱歉，模型服务暂时不可用，请稍后重试。"
-            if "BadRequestError" in type(exc).__name__ or "400" in str(exc)
-            else f"An error occurred: {exc}"
-        )
-        return {"messages": [AIMessage(content=error_msg)]}
-
-    return {"messages": [response]}
+# ======================================================================
+# HITL (unchanged)
+# ======================================================================
 
 
 def _parse_task_proposals(state: AgentState) -> list[dict] | None:
@@ -123,10 +130,10 @@ async def hitl_node(
     # On resume: ToolMessage is still in state["messages"] (checkpointed)
     # because the "tools" node does NOT re-execute — only "hitl_node" restarts.
     proposed = _parse_task_proposals(state)
-    
+
     # DEBUG: Print proposed tasks
     print_proposed_tasks(proposed)
-    
+
     if not proposed:
         logger.warning("hitl_node: no task proposals found for user=%s", user_id)
         return {
@@ -154,7 +161,7 @@ async def hitl_node(
     edited_tasks: dict[str, dict] = {
         e["key"]: e["task"] for e in approval.get("edited_tasks", [])
     }
-    
+
     # DEBUG: Print approval details and edited tasks
     print_approval_result(approval, rejected_keys, edited_tasks)
 
@@ -193,7 +200,7 @@ async def hitl_node(
 
     # ── Build return messages ──
     messages: list[HumanMessage] = [HumanMessage(content=summary)]
-    
+
     # Check if user wants to submit tasks to DingTalk
     if approval.get("submit_to_dingtalk", False):
         DINGTALK_TASK_MANAGEMENT_TEMPLATE = """
@@ -204,5 +211,5 @@ Here is the summary of task changes:
 """
         mcpPrompt = DINGTALK_TASK_MANAGEMENT_TEMPLATE.format(summary=summary)
         messages.append(HumanMessage(content=mcpPrompt))
-    
+
     return {"messages": messages}
