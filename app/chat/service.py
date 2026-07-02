@@ -21,6 +21,24 @@ def _last_ai_content(messages: list) -> str:
     return ""
 
 
+def _build_chat_response(
+    result_value: dict,
+    user_id: str,
+    interrupt_data: dict | None = None,
+) -> dict:
+    """Build the standard ``{reply, tasks, interrupt?}`` response dict.
+
+    Called by both ``chat_llm`` and ``resume_graph`` to avoid repeating
+    the ``_last_ai_content`` / ``get_tasks`` / dict construction pattern.
+    """
+    reply = _last_ai_content(result_value.get("messages", []))
+    tasks = get_tasks(builder.store, user_id)
+    response = {"reply": reply, "tasks": tasks}
+    if interrupt_data:
+        response["interrupt"] = interrupt_data
+    return response
+
+
 # ── Non-streaming (invoke) ────────────────────────────────────────────
 
 
@@ -62,19 +80,13 @@ async def chat_llm(
     )
 
     # ── v2: result is GraphOutput, not a dict ──
-    if result.interrupts:
-        interrupt_data = result.interrupts[0].value
+    interrupt_data = result.interrupts[0].value if result.interrupts else None
+    if interrupt_data:
         logger.info(
             "HITL interrupt returned user=%s type=%s",
             user_id, interrupt_data.get("type"),
         )
-        reply = _last_ai_content(result.value.get("messages", []))
-        tasks = get_tasks(builder.store, user_id)
-        return {"reply": reply, "tasks": tasks, "interrupt": interrupt_data}
-
-    reply = _last_ai_content(result.value["messages"])
-    tasks = get_tasks(builder.store, user_id)
-    return {"reply": reply, "tasks": tasks}
+    return _build_chat_response(result.value, user_id, interrupt_data)
 
 
 # ── Streaming (astream_events v3) ─────────────────────────────────────
@@ -199,13 +211,7 @@ async def resume_graph(
     )
 
     # v2: GraphOutput — clean .interrupts access
-    if result.interrupts:
-        interrupt_data = result.interrupts[0].value
+    interrupt_data = result.interrupts[0].value if result.interrupts else None
+    if interrupt_data:
         logger.info("HITL re-interrupt after resume user=%s", user_id)
-        reply = _last_ai_content(result.value.get("messages", []))
-        tasks = get_tasks(builder.store, user_id)
-        return {"reply": reply, "tasks": tasks, "interrupt": interrupt_data}
-
-    reply = _last_ai_content(result.value["messages"])
-    tasks = get_tasks(builder.store, user_id)
-    return {"reply": reply, "tasks": tasks}
+    return _build_chat_response(result.value, user_id, interrupt_data)

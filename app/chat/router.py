@@ -1,8 +1,15 @@
-from fastapi import APIRouter, File, Form, UploadFile
+from fastapi import APIRouter, UploadFile
 from sse_starlette.sse import EventSourceResponse
 
 from app.chat.schemas import ChatResponse, ResumeRequest
 from app.chat.service import chat_llm, chat_llm_stream, resume_graph
+from app.core.dependencies import (
+    AudioFileDep,
+    LanguageFormDep,
+    MessageFormDep,
+    UserIdFormDep,
+    read_audio,
+)
 
 
 chatRouter = APIRouter(prefix="/chat", tags=["chat"])
@@ -10,10 +17,10 @@ chatRouter = APIRouter(prefix="/chat", tags=["chat"])
 
 @chatRouter.post("", response_model=ChatResponse)
 async def chat(
-    message: str = Form(""),
-    user_id: str = Form("default"),
-    language: str | None = Form(None),
-    audio: UploadFile | None = File(None),
+    message: MessageFormDep = "",
+    user_id: UserIdFormDep = "default",
+    language: LanguageFormDep = None,
+    audio: AudioFileDep = None,
 ):
     """Process text message or audio file (or both).
 
@@ -25,11 +32,7 @@ async def chat(
 
     Returns an ``interrupt`` field when the graph pauses for human approval.
     """
-    audio_bytes = None
-    audio_filename = None
-    if audio:
-        audio_bytes = await audio.read()
-        audio_filename = audio.filename
+    audio_bytes, audio_filename = await read_audio(audio)
 
     data = await chat_llm(
         message=message,
@@ -71,10 +74,10 @@ async def chat_resume(request: ResumeRequest):
 
 @chatRouter.post("/stream")
 async def chat_stream(
-    message: str = Form(""),
-    user_id: str = Form("default"),
-    language: str | None = Form(None),
-    audio: UploadFile | None = File(None),
+    message: MessageFormDep = "",
+    user_id: UserIdFormDep = "default",
+    language: LanguageFormDep = None,
+    audio: AudioFileDep = None,
 ):
     """Stream processing result for text message or audio file (or both).
 
@@ -88,11 +91,7 @@ async def chat_stream(
     yielded so the frontend can render an approval card.  After the user
     decides, POST to ``/resume`` to continue.
     """
-    audio_bytes = None
-    audio_filename = None
-    if audio:
-        audio_bytes = await audio.read()
-        audio_filename = audio.filename
+    audio_bytes, audio_filename = await read_audio(audio)
 
     return EventSourceResponse(chat_llm_stream(
         message=message,
