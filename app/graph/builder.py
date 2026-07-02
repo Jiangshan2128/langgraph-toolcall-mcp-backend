@@ -114,23 +114,27 @@ graph = build_graph()
 
 
 async def init_graph():
-    """Load DingTalk MCP tools and rebuild the graph with the full tool set.
+    """Load MCP tools from ``mcp_servers.json`` and rebuild the graph.
 
-    Called once during app startup. Failures are logged and non-fatal: the core
-    graph stays in place.
+    Called once during app startup.  Failures are logged and non-fatal: the
+    core graph stays in place and the app continues with its built-in tools.
+
+    To add a new MCP server, edit ``mcp_servers.json`` in the project root
+    (see ``mcp_servers.example.json`` for the format).
     """
     global graph
-    from app.tools.community.dingtalk import load_dingtalk_tools
+    from app.tools.mcp_loader import load_mcp_tools
 
-    dt_tools = await load_dingtalk_tools()
-    print_section(f"DingTalk MCP Tools {len(dt_tools)}")
-    if not dt_tools:
+    mcp_tools = await load_mcp_tools()
+    print_section(f"MCP Tools {len(mcp_tools)}")
+    if not mcp_tools:
         return
 
-    # DingTalk tools are already tagged as MCP inside load_dingtalk_tools().
+    # MCP tools are already registered via register_mcp_tools() inside
+    # load_mcp_tools().  Now merge them into ALL_TOOLS for ToolNode.
     existing = {t.name for t in ALL_TOOLS}
     added = 0
-    for t in dt_tools:
+    for t in mcp_tools:
         if t.name not in existing:
             ALL_TOOLS.append(t)
             existing.add(t.name)
@@ -148,7 +152,7 @@ async def init_graph():
         refresh_deferred_setup(setup)
         graph = build_graph()
         logger.info(
-            "Graph rebuilt with DingTalk MCP tools (added=%d, total=%d).",
+            "Graph rebuilt with MCP tools (added=%d, total=%d).",
             added,
             len(ALL_TOOLS),
         )

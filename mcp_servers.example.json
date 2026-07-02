@@ -1,0 +1,26 @@
+{
+  "mcpServers": {
+    "dingtalk": {
+      "enabled": true,
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "dingtalk-mcp@latest"],
+      "env": {
+        "DINGTALK_Client_ID": "$DINGTALK_CLIENT_ID",
+        "DINGTALK_Client_Secret": "$DINGTALK_CLIENT_SECRET",
+        "ACTIVE_PROFILES": "$DINGTALK_ACTIVE_PROFILES"
+      },
+      "description": "钉钉 MCP 服务，提供钉钉办公套件操作能力"
+    },
+    "example-server": {
+      "enabled": false,
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@org/mcp-server"],
+      "env": {
+        "API_KEY": "$MY_API_KEY"
+      },
+      "description": "示例 MCP 服务 — 启用并配置环境变量后即可使用"
+    }
+  }
+}

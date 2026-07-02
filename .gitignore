@@ -8,3 +8,9 @@ wheels/
 
 # Virtual environments
 .venv
+
+# Environment-specific config
+.env
+
+# MCP server configuration (copy from mcp_servers.example.json)
+mcp_servers.json
