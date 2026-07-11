@@ -1,0 +1,4 @@
+# FAISS vector store index files (binary)
+*.faiss
+*.pkl
+index.pkl
