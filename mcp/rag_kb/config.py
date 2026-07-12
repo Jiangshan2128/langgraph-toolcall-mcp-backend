@@ -53,6 +53,10 @@ class RAGConfig(BaseSettings):
         extra="ignore",
     )
 
+    # -- Vector Store Backend ------------------------------------------
+    # Backend selection: "qdrant" (default) or "supabase" (future).
+    VECTOR_STORE_BACKEND: str = "qdrant"
+
     # -- Embeddings ----------------------------------------------------
     # Provider: "openai" (any OpenAI-compatible API) or "huggingface" (local)
     EMBEDDING_PROVIDER: str = "openai"
@@ -75,6 +79,12 @@ class RAGConfig(BaseSettings):
     DOCUMENTS_PATH: str = str(
         _PROJECT_ROOT / "mcp" / "knowledge_base" / "documents"
     )
+
+    # -- Indexing -------------------------------------------------------
+    # Auto-index documents on server startup
+    AUTO_INDEX_ON_START: bool = True
+    # Enable file system watcher for live updates
+    WATCH_ENABLED: bool = False
 
     # -- Chunking -------------------------------------------------------
     CHUNK_SIZE: int = 1000
