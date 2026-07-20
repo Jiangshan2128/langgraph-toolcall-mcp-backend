@@ -33,6 +33,8 @@ dependencies = [
     "langchain-experimental>=0.4.2",
     "mammoth>=1.12.0",
     "markdownify>=1.2.3",
+    "FlagEmbedding>=1.3.0",
+    "dashscope>=1.26.0",
 ]
 
 [project.optional-dependencies]
