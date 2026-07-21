@@ -78,8 +78,9 @@ logger = logging.getLogger("mcp.server")
 from rag_kb.tools import mcp  # noqa: F401 — needed for fastmcp run
 from rag_kb.tools import search  # noqa: F401 — registers search tools
 from rag_kb.tools import index  # noqa: F401 — registers index tools
+from rag_kb.tools import graphrag_tools  # noqa: F401 — registers graphrag tools
 
-logger.info("Registered tool modules: search, index")
+logger.info("Registered tool modules: search, index, graphrag")
 
 # =====================================================================
 # Entry Point
