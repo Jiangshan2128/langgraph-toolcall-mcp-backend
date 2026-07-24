@@ -35,7 +35,7 @@ def print_end_section() -> None:
 # =============================================================================
 def print_task_item(idx: int, key: str, task: dict[str, Any], action: str | None = None) -> None:
     """Print a single task item with consistent formatting.
-    
+
     Args:
         idx: Item index (1-based)
         key: Task key/ID
@@ -53,7 +53,7 @@ def print_task_item(idx: int, key: str, task: dict[str, Any], action: str | None
 
 def print_proposed_tasks(proposed: list[dict]) -> None:
     """Print proposed tasks for HITL debugging.
-    
+
     Args:
         proposed: List of proposed task dictionaries with keys:
             - key: Task key
@@ -65,7 +65,7 @@ def print_proposed_tasks(proposed: list[dict]) -> None:
         print("[DEBUG] No proposed tasks found!")
         print_end_section()
         return
-    
+
     print(f"[DEBUG] Total proposed: {len(proposed)}")
     for idx, p in enumerate(proposed, 1):
         task = p.get('task', {})
@@ -75,7 +75,7 @@ def print_proposed_tasks(proposed: list[dict]) -> None:
 
 def print_approval_result(approval: dict, rejected_keys: set, edited_tasks: dict) -> None:
     """Print approval result for HITL debugging.
-    
+
     Args:
         approval: Approval response dict with 'approved' key
         rejected_keys: Set of rejected task keys
@@ -85,7 +85,7 @@ def print_approval_result(approval: dict, rejected_keys: set, edited_tasks: dict
     print(f"[DEBUG] approved={approval.get('approved')}")
     print(f"[DEBUG] rejected_keys={list(rejected_keys)}")
     print(f"[DEBUG] edited_tasks count={len(edited_tasks)}")
-    
+
     if edited_tasks:
         print_subsection("Edited Tasks Details")
         for idx, (key, task) in enumerate(edited_tasks.items(), 1):
@@ -95,7 +95,7 @@ def print_approval_result(approval: dict, rejected_keys: set, edited_tasks: dict
 
 def print_final_upserts(upserts: list[tuple[str, dict]]) -> None:
     """Print final upserts for HITL debugging.
-    
+
     Args:
         upserts: List of (key, task_data) tuples to be upserted
     """
@@ -104,7 +104,7 @@ def print_final_upserts(upserts: list[tuple[str, dict]]) -> None:
         print("[DEBUG] No upserts to apply")
         print_end_section()
         return
-    
+
     for idx, (key, task) in enumerate(upserts, 1):
         print_task_item(idx, key, task)
     print_end_section()
@@ -122,37 +122,37 @@ def build_hitl_summary(
     addToDingtalk: bool = False,
 ) -> str:
     """Build a detailed summary message for HITL approval results.
-    
+
     Args:
         proposed: Original proposed tasks
         edited_tasks: Dict of edited tasks {key: task_data}
         rejected_keys: Set of rejected task keys
         deleted_count: Number of deleted tasks
         upserts_count: Number of upserted tasks
-        
+
     Returns:
         Human-readable summary message
     """
     summary_parts = []
-    
+
     # Track edited tasks
     if edited_tasks:
         for key, new_task in edited_tasks.items():
             original_task = next((p["task"] for p in proposed if p["key"] == key), None)
-            
+
             if original_task:
                 old_title = original_task.get("title", "Untitled")
                 new_title = new_task.get("title", "Untitled")
                 old_priority = original_task.get("priority", "N/A")
                 new_priority = new_task.get("priority", "N/A")
-                
+
                 if old_title != new_title:
                     summary_parts.append(f'The task "{old_title}" has already changed to "{new_title} and updated manually, dont need to update the original task".')
                 elif old_priority != new_priority:
                     summary_parts.append(f'The task "{new_title}" priority was changed from {old_priority} to {new_priority}.')
                 else:
                     summary_parts.append(f'The task "{new_title}" was modified by the user.')
-    
+
     # Track rejected tasks
     if rejected_keys:
         rejected_titles = [
@@ -162,7 +162,7 @@ def build_hitl_summary(
         ]
         if rejected_titles:
             summary_parts.append(f'The following task(s) were rejected: {", ".join(rejected_titles)}.')
-    
+
     # Track new/accepted tasks (not edited, not rejected)
     new_tasks = [
         f'"{p["task"].get("title", "Untitled")}"'
@@ -171,11 +171,11 @@ def build_hitl_summary(
     ]
     if new_tasks:
         summary_parts.append(f'New task(s) added: {", ".join(new_tasks)}.')
-    
+
     # Track deleted tasks
     if deleted_count > 0:
         summary_parts.append(f'{deleted_count} task(s) were deleted.')
-    
+
     return " ".join(summary_parts) if summary_parts else (
         f"Task memory updated ({upserts_count} upsert(s), {deleted_count} delete(s)) after human approval."
     )
@@ -199,7 +199,7 @@ def build_hitl_system_directive() -> str:
 # =============================================================================
 def print_dict(data: dict, title: str = "Data") -> None:
     """Print a dictionary with formatting.
-    
+
     Args:
         data: Dictionary to print
         title: Section title
@@ -212,7 +212,7 @@ def print_dict(data: dict, title: str = "Data") -> None:
 
 def print_list(items: list, title: str = "Items", item_formatter=None) -> None:
     """Print a list with formatting.
-    
+
     Args:
         items: List to print
         title: Section title

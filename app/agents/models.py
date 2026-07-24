@@ -3,7 +3,7 @@ from functools import lru_cache
 
 from langchain_openai import ChatOpenAI
 
-from app.core.config import settings
+from app.config.settings import settings
 
 
 @dataclass

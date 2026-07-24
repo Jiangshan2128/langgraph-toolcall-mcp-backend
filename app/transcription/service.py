@@ -10,7 +10,7 @@ from io import BytesIO
 
 from groq import APIStatusError, AsyncGroq
 
-from app.core.config import settings
+from app.config.settings import settings
 
 logger = logging.getLogger(__name__)
 

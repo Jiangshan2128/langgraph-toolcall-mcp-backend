@@ -5,7 +5,7 @@ from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.types import Command
 
 from app.agents.models import Configuration
-from app.core.thread import resolve_thread_id
+from app.chat.thread import resolve_thread_id
 from app.agents.graph import builder
 from app.agents.graph.state import AgentState
 from app.store.memory import get_tasks

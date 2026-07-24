@@ -7,7 +7,7 @@ from langgraph.types import interrupt
 
 from app.agents.models import Configuration
 from app.agents.prompts import MODEL_SYSTEM_MESSAGE
-from app.core.debug_utils import (
+from app.agents.debug_utils import (
     build_hitl_summary,
     print_final_upserts,
     print_proposed_tasks,

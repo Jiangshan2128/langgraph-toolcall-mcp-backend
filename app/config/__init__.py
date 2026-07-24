@@ -1,7 +1,7 @@
 """Focused config modules (deer-flow singleton pattern).
 
 Each module exposes a pydantic-settings class and a ``get_*_config()``
-singleton getter. For backward compatibility, ``app.core.config.settings``
+singleton getter. For backward compatibility, ``app.config.settings``
 still works as a unified proxy.
 """
 

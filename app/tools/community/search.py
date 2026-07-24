@@ -1,7 +1,7 @@
 from langchain.tools import tool
 from tavily import TavilyClient
 
-from app.core.config import settings
+from app.config.settings import settings
 
 
 @tool

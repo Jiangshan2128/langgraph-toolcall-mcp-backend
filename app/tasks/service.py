@@ -2,7 +2,7 @@ import logging
 
 from langchain_core.messages import HumanMessage
 
-from app.core.thread import resolve_thread_id
+from app.chat.thread import resolve_thread_id
 from app.agents.graph import builder
 from app.store.memory import delete_task as _delete_task
 from app.store.memory import get_tasks

@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
 
-from app.core.dependencies import UserIdQueryDep
+from app.common.dependencies import UserIdQueryDep
 from app.tasks.schemas import TaskUpdateRequest
 from app.tasks.service import delete_task, update_task
 

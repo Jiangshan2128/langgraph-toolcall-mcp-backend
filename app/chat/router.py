@@ -3,7 +3,7 @@ from sse_starlette.sse import EventSourceResponse
 
 from app.chat.schemas import ChatResponse, ResumeRequest
 from app.chat.service import chat_llm, chat_llm_stream, resume_graph
-from app.core.dependencies import (
+from app.common.dependencies import (
     AudioFileDep,
     LanguageFormDep,
     MessageFormDep,

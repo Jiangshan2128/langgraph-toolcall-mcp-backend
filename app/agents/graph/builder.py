@@ -7,8 +7,8 @@ from langgraph.prebuilt import ToolNode
 from langgraph.store.memory import InMemoryStore
 
 from app.agents.models import Configuration
-from app.core.config import settings
-from app.core.debug_utils import print_section
+from app.config.settings import settings
+from app.agents.debug_utils import print_section
 from app.agents.graph.nodes import agent_node, hitl_node
 from app.agents.graph.routing import route_after_agent, route_after_tools, route_start
 from app.agents.graph.state import AgentState

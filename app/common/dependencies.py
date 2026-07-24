@@ -3,14 +3,14 @@
 Provides reusable Annotated type aliases for common endpoint parameters.
 Use these in router handlers instead of raw ``Form()`` / ``Query()`` defaults::
 
-    from app.core.dependencies import UserIdFormDep
+    from app.common.dependencies import UserIdFormDep
 
     @router.post("")
     async def chat(user_id: UserIdFormDep = "default"):
         ...
 """
 
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import File, Form, Query, UploadFile
 
@@ -37,10 +37,6 @@ UserIdQueryDep = Annotated[str, Query(description="用户标识")]
 
 
 # ── Audio upload helper ────────────────────────────────────────────────
-
-from typing import Any
-
-from fastapi import UploadFile
 
 
 async def read_audio(file: Any | None) -> tuple[bytes | None, str | None]:

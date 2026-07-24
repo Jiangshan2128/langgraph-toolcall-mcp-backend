@@ -1,7 +1,7 @@
 """Backward-compatible settings proxy.
 
 Delegates to the focused config modules under ``app.config.*``.
-Existing code that does ``from app.core.config import settings``
+Existing code that does ``from app.config.settings import settings``
 continues to work without changes.
 
 New code should import directly from the config modules::
