@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 
 def _default_model_binder(*, promoted_names: list[str] | None = None) -> ChatOpenAI:
-    from ainote.agents.graph.tool_router import get_model_with_tools
+    from ainote.agents.graph.tool_binder import get_model_with_tools
 
     return get_model_with_tools(promoted_names=promoted_names)
 
