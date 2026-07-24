@@ -33,3 +33,12 @@ class ResumeRequest(BaseModel):
             "或 {\"approved\": false}"
         ),
     )
+
+
+class TaskUpdateRequest(BaseModel):
+    """Request body for patching a task."""
+
+    updates: dict = Field(
+        ...,
+        description='要更新的字段，如 {"status": "done", "priority": "P0"}',
+    )

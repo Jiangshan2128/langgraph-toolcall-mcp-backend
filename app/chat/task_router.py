@@ -1,8 +1,8 @@
 from fastapi import APIRouter, HTTPException
 
 from app.common.dependencies import UserIdQueryDep
-from app.tasks.schemas import TaskUpdateRequest
-from app.tasks.service import delete_task, update_task
+from app.chat.schemas import TaskUpdateRequest
+from app.chat.task_service import delete_task, update_task
 
 
 taskRouter = APIRouter(prefix="/tasks", tags=["tasks"])

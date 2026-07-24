@@ -15,7 +15,7 @@ from fastapi import FastAPI
 from app.chat.router import chatRouter
 from app.config.settings import settings
 from app.agents.graph.builder import init_graph, pool
-from app.tasks.router import taskRouter
+from app.chat.task_router import taskRouter
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
