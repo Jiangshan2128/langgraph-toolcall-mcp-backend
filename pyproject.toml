@@ -43,7 +43,7 @@ dev = [
 ]
 
 [tool.setuptools.packages.find]
-include = ["app*"]
+include = ["app*", "ainote*"]
 exclude = ["appBackup*", "tests*"]
 
 [tool.pytest.ini_options]

@@ -1,7 +1,7 @@
 from langchain_core.messages import AIMessage
 from langgraph.graph import END
 
-from app.agents.graph.routing import route_after_agent
+from ainote.agents.graph.routing import route_after_agent
 
 
 def _make_state_with_tool_call(tool_name: str):

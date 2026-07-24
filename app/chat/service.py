@@ -4,11 +4,11 @@ import logging
 from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.types import Command
 
-from app.agents.models import Configuration
-from app.agents.graph.thread import resolve_thread_id
-from app.agents.graph import builder
-from app.agents.graph.state import AgentState
-from app.agents.memory import get_tasks
+from ainote.agents.models import Configuration
+from ainote.agents.graph.thread import resolve_thread_id
+from ainote.agents.graph import builder
+from ainote.agents.graph.state import AgentState
+from ainote.agents.memory import get_tasks
 
 logger = logging.getLogger(__name__)
 

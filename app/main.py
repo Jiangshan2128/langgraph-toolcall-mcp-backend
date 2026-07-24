@@ -10,11 +10,18 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 
+import sys
+from pathlib import Path
+
+_HARNESS = str(Path(__file__).resolve().parent / "packages" / "harness")
+if _HARNESS not in sys.path:
+    sys.path.insert(0, _HARNESS)
+
 from fastapi import FastAPI
 
 from app.chat.router import chatRouter
-from app.config.settings import settings
-from app.agents.graph.builder import init_graph, pool
+from ainote.config.settings import settings
+from ainote.agents.graph.builder import init_graph, pool
 from app.chat.task_router import taskRouter
 
 @asynccontextmanager

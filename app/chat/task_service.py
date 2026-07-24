@@ -2,11 +2,11 @@ import logging
 
 from langchain_core.messages import HumanMessage
 
-from app.agents.graph.thread import resolve_thread_id
-from app.agents.graph import builder
-from app.agents.memory import delete_task as _delete_task
-from app.agents.memory import get_tasks
-from app.agents.memory import update_task as _update_task
+from ainote.agents.graph.thread import resolve_thread_id
+from ainote.agents.graph import builder
+from ainote.agents.memory import delete_task as _delete_task
+from ainote.agents.memory import get_tasks
+from ainote.agents.memory import update_task as _update_task
 
 logger = logging.getLogger(__name__)
 

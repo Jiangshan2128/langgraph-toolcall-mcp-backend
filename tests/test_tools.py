@@ -1,8 +1,8 @@
 from langgraph.store.memory import InMemoryStore
 
-from app.agents.graph.state import AgentState
-from app.agents.memory import put_tasks
-from app.tools.core.tasks import (
+from ainote.agents.graph.state import AgentState
+from ainote.agents.memory import put_tasks
+from ainote.tools.core.tasks import (
     delete_task_by_title,
     mark_task_done,
     update_task_priority,
