@@ -13,6 +13,19 @@ completion_models:
     api_base: ${DEEPSEEK_BASE_URL}
     retry:
       type: exponential_backoff
+      max_retries: 5
+    timeout: 120
+
+  doubao_model:
+    model_provider: openai
+    model: ${DOUBAO_MODEL}
+    auth_method: api_key
+    api_key: ${DOUBAO_API_KEY}
+    api_base: ${DOUBAO_BASE_URL}
+    retry:
+      type: exponential_backoff
+      max_retries: 5
+    timeout: 120
 
 embedding_models:
   default_embedding_model:
@@ -28,7 +41,7 @@ embedding_models:
 
 input:
   type: markitdown # [csv, text, json, jsonl, markitdown, parquet]
-  file_pattern: ".*\\.docx"
+  file_pattern: ".*\\.(docx|md)"
 
 chunking:
   type: tokens
@@ -66,6 +79,7 @@ vector_store:
 
 embed_text:
   embedding_model_id: default_embedding_model
+  batch_size: 10
 
 extract_graph:
   completion_model_id: default_completion_model
@@ -84,6 +98,7 @@ extract_graph_nlp:
 
 cluster_graph:
   max_cluster_size: 10
+  use_lcc: false
 
 extract_claims:
   enabled: false
@@ -93,7 +108,7 @@ extract_claims:
   max_gleanings: 1
 
 community_reports:
-  completion_model_id: default_completion_model
+  completion_model_id: doubao_model
   graph_prompt: "prompts/community_report_graph.txt"
   text_prompt: "prompts/community_report_text.txt"
   max_length: 2000

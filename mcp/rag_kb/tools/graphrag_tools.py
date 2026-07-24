@@ -1,12 +1,13 @@
 """MCP tools — GraphRAG knowledge graph search.
 
-Tools registered at import time via ``@mcp.tool``:
+Tools registered at import time via ``@mcp.tool``::
 
-    search_graph   — Deep graph-based retrieval for complex queries
-    get_graph_stats — View knowledge graph statistics
+    search_graph             — Graph-based retrieval (local or global mode)
+    get_graphrag_index_status — View knowledge graph statistics
 
 These complement the existing ``search_docs`` tool.  The Client LLM
 chooses which tool to call based on the description:
+
 - ``search_docs``: fast semantic search, best for concrete facts/parameters
 - ``search_graph``: graph-based search, best for global overviews,
   cross-section relationships, and multi-hop reasoning
@@ -30,7 +31,7 @@ def _get_graphrag_root() -> str:
     """Return the absolute path to the graphrag project directory."""
     global _GRAPHRAG_ROOT
     if _GRAPHRAG_ROOT is None:
-        _mcp_dir = Path(__file__).resolve().parents[1]
+        _mcp_dir = Path(__file__).resolve().parents[2]
         _GRAPHRAG_ROOT = str(_mcp_dir / "graphrag")
     return _GRAPHRAG_ROOT
 
@@ -60,58 +61,119 @@ def _get_store():
 
 
 @mcp.tool
-def search_graph(query: str) -> str:
+async def search_graph(
+    query: str,
+    mode: str = "local",
+    community_level: int = 1,
+) -> str:
     """Deep graph-based knowledge retrieval for complex queries.
 
-    Use this tool when the question involves ANY of the following:
-    - **Global overview**: "文档整体讲了什么", "涉及哪些技术领域"
-    - **Cross-section relationships**: "A 如何影响 B", "X 对 Y 有什么约束"
-    - **Multi-hop reasoning**: "在载荷限制下能扩展什么功能"
-    - **Cross-document comparison**: "三个文档中哪些参数待定"
-    - **Summarization**: "总结这份规格书的验收体系"
+    Uses GraphRAG's built-in search engine over the knowledge graph.
 
-    For simple fact/parameter lookups (e.g. "机芯供电电压", "云台定位精度"),
-    use ``search_docs`` instead — it is faster and more cost-effective.
+    Use **local** mode when the question involves specific entities,
+    parameters, or technical details:
+    - "机芯供电电压是多少"
+    - "云台定位精度"
+    - "A818 支持哪些分辨率"
+
+    Use **global** mode when the question involves overall themes,
+    cross-document comparison, or summarization:
+    - "文档整体讲了什么"
+    - "涉及哪些技术领域"
+    - "三个文档的共同主题是什么"
+
+    For simple fact/parameter lookups, use ``search_docs`` instead —
+    it is faster and more cost-effective.
 
     Note: This tool requires the GraphRAG index to be built first.
     If indexing has not been run, it will suggest using ``search_docs``.
 
     Args:
         query: Natural language query for graph-based retrieval.
+        mode: ``"local"`` (entity-focused, default) or ``"global"``
+            (theme-focused).
+        community_level: Hierarchy level to search. 0=most granular
+            details, higher=broader themes. Default: 1.
 
     Returns:
         Formatted answer generated from the knowledge graph.
     """
     store = _get_store()
-    return store.search(query)
+
+    if mode == "global":
+        return await store.search_global(
+            query=query, community_level=community_level
+        )
+    return await store.search_local(
+        query=query, community_level=community_level
+    )
 
 
 @mcp.tool
-def get_graph_stats() -> str:
-    """View statistics about the GraphRAG knowledge graph.
+async def refresh_graphrag_index(
+    method: str = "standard",
+    incremental: bool = False,
+    skip_preprocess: bool = True,
+) -> str:
+    """Rebuild the GraphRAG knowledge graph index.
 
-    Returns entity count, relationship count, community count, and
-    whether the index is ready for querying.  Use this to verify
-    the knowledge graph has been built before calling ``search_graph``.
+    Runs the full indexing pipeline: DOCX preprocessing → entity extraction
+    → graph construction → community detection → summaries.
+
+    Use this after adding or updating documents in the knowledge base.
+    The index may take several minutes depending on document volume.
+
+    Args:
+        method: Indexing method — ``"standard"`` (LLM-based, higher quality)
+            or ``"nlp"`` (faster, rule-based). Default: standard.
+        incremental: If true, run an incremental update instead of full
+            rebuild. Only new/changed documents are processed.
+        skip_preprocess: Skip DOCX preprocessing (e.g. if input files
+            are already in place).
 
     Returns:
-        Formatted statistics about the knowledge graph.
+        Summary of indexing results (workflow status + output stats).
+    """
+    from rag_kb.graphrag_indexer import build_index as _build
+
+    result = await _build(
+        verbose=True,
+        method=method,
+        is_update_run=incremental,
+        skip_preprocess=skip_preprocess,
+    )
+    return result
+
+
+@mcp.tool
+def get_graphrag_index_status() -> str:
+    """Check if the GraphRAG knowledge graph index is ready and get its path.
+
+    Returns the status (ready / not built), output directory, and
+    a hint on how to build or rebuild the index.
+
+    Returns:
+        Status message with path info.
     """
     store = _get_store()
     stats = store.get_stats()
+    root = _get_graphrag_root()
 
-    lines = ["GraphRAG Knowledge Graph Statistics", "-" * 40]
-    lines.append(f"  Ready:        {'Yes' if stats.is_ready else 'No (index not built)'}")
-    lines.append(f"  Entities:     {stats.entity_count}")
-    lines.append(f"  Relationships:{stats.relationship_count}")
-    lines.append(f"  Communities:  {stats.community_count}")
-    lines.append(f"  Text Units:   {stats.text_unit_count}")
-    lines.append(f"  Documents:    {stats.document_count}")
+    lines = [
+        "GraphRAG Index Status",
+        f"  Ready:  {'✅ Yes' if stats.is_ready else '❌ No'}",
+        f"  Root:   {root}",
+        f"  Output: {root}/output/",
+    ]
 
-    if not stats.is_ready:
-        root = _get_graphrag_root()
+    if stats.is_ready:
+        lines.append(f"  Entities:     {stats.entity_count}")
+        lines.append(f"  Relationships:{stats.relationship_count}")
+        lines.append(f"  Communities:  {stats.community_count}")
+        lines.append(f"  Text Units:   {stats.text_unit_count}")
+        lines.append(f"  Documents:    {stats.document_count}")
+    else:
         lines.append("")
-        lines.append("To build the index, run:")
-        lines.append(f"  graphrag index --root {root}")
+        lines.append("Call `refresh_graphrag_index` to build the index.")
 
     return "\n".join(lines)
