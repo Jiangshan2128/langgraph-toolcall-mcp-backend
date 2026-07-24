@@ -2,18 +2,18 @@ import json as _json
 import logging
 import uuid
 from datetime import datetime
-from typing import Annotated
+from typing import Annotated, Literal, Optional
 
 from langchain.tools import tool
 from langchain_core.messages import SystemMessage, merge_message_runs
 from langgraph.prebuilt.tool_node import InjectedState, InjectedStore
 from langgraph.store.base import BaseStore
+from pydantic import BaseModel, Field
 from trustcall import create_extractor
 
 from app.agents.models import get_model
 from app.agents.prompts import CREATE_INSTRUCTIONS, TRUSTCALL_INSTRUCTION
 from app.agents.graph.state import AgentState
-from app.schemas.domain import Profile, Task
 from app.store.memory import (
     get_instructions,
     get_profile,
@@ -21,6 +21,45 @@ from app.store.memory import (
     put_instructions,
     put_profile,
 )
+
+
+class Profile(BaseModel):
+    """Profile of the user the agent is chatting with."""
+
+    name: Optional[str] = Field(default=None, description="The user's name")
+    location: Optional[str] = Field(default=None, description="The user's location")
+    role: Optional[str] = Field(default=None, description="The user's role or job")
+    connections: list[str] = Field(
+        default_factory=list,
+        description="People, teams, or groups the user works with",
+    )
+    preferences: list[str] = Field(
+        default_factory=list,
+        description="Preferences for task planning and communication",
+    )
+
+
+class Task(BaseModel):
+    """A task the user wants to track."""
+
+    title: str = Field(description="The task title")
+    description: Optional[str] = Field(default=None, description="Task details")
+    assignee: Optional[str] = Field(default=None, description="Who should own the task")
+    priority: Literal["P0", "P1", "P2"] = Field(
+        default="P1", description="P0 = urgent today, P1 = important, P2 = routine"
+    )
+    time: str = Field(default="", description="when to start the task, e.g. 'today' or 'next week'")
+    deadline: Optional[str] = Field(
+        default=None,
+        description="Deadline as YYYY-MM-DD or descriptive text",
+    )
+    pre_task: Optional[str] = Field(
+        default=None,
+        description="Prerequisite task title, if any",
+    )
+    status: Literal["not started", "in progress", "done", "archived"] = Field(
+        default="not started", description="Current task status"
+    )
 
 logger = logging.getLogger(__name__)
 
