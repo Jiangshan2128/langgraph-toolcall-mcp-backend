@@ -1,6 +1,6 @@
 from langgraph.store.memory import InMemoryStore
 
-from app.graph.builder import graph
+from app.agents.graph.builder import graph
 
 
 def test_graph_compiles():

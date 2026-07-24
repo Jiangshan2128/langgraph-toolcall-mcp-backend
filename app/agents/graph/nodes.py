@@ -15,18 +15,18 @@ from app.core.debug_utils import (
     print_proposed_tasks,
     print_approval_result,
 )
-from app.graph.deferred_cache import (
+from app.agents.graph.deferred_cache import (
     get_deferred_setup_cached,
     refresh_deferred_setup,
 )
-from app.graph.middleware import (
+from app.agents.graph.middleware import (
     ErrorHandlingMiddleware,
     MemoryLoadMiddleware,
     Pipeline,
     SystemPromptMiddleware,
     ToolBindingMiddleware,
 )
-from app.graph.state import AgentState
+from app.agents.graph.state import AgentState
 from app.store.memory import (
     delete_task as _delete_task,
     put_tasks,

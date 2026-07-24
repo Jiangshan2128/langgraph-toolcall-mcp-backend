@@ -5,9 +5,9 @@ including state management, node functions, and graph building.
 
 Import directly from submodules to avoid circular dependencies::
 
-    from app.graph.builder import graph, build_graph, init_graph
-    from app.graph.state import AgentState
-    from app.graph.nodes import agent_node, hitl_node
+    from app.agents.graph.builder import graph, build_graph, init_graph
+    from app.agents.graph.state import AgentState
+    from app.agents.graph.nodes import agent_node, hitl_node
 """
 
 
@@ -16,19 +16,19 @@ def __getattr__(name: str):
     during module initialization, preventing a circular import with app.tools.
     """
     if name == "build_graph":
-        from app.graph.builder import build_graph
+        from app.agents.graph.builder import build_graph
 
         return build_graph
     if name == "agent_node":
-        from app.graph.nodes import agent_node
+        from app.agents.graph.nodes import agent_node
 
         return agent_node
     if name == "hitl_node":
-        from app.graph.nodes import hitl_node
+        from app.agents.graph.nodes import hitl_node
 
         return hitl_node
     if name == "AgentState":
-        from app.graph.state import AgentState
+        from app.agents.graph.state import AgentState
 
         return AgentState
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

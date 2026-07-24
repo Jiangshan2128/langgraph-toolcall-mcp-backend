@@ -15,7 +15,7 @@ from app.agents.config import (
     TRUSTCALL_INSTRUCTION,
     get_model,
 )
-from app.graph.state import AgentState
+from app.agents.graph.state import AgentState
 from app.schemas.domain import Profile, Task
 from app.store.memory import (
     get_instructions,

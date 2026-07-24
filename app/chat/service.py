@@ -6,8 +6,8 @@ from langgraph.types import Command
 
 from app.agents.config import Configuration
 from app.core.thread import resolve_thread_id
-from app.graph import builder
-from app.graph.state import AgentState
+from app.agents.graph import builder
+from app.agents.graph.state import AgentState
 from app.store.memory import get_tasks
 
 logger = logging.getLogger(__name__)

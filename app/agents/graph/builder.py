@@ -9,9 +9,9 @@ from langgraph.store.memory import InMemoryStore
 from app.agents.config import Configuration
 from app.core.config import settings
 from app.core.debug_utils import print_section
-from app.graph.nodes import agent_node, hitl_node
-from app.graph.routing import route_after_agent, route_after_tools, route_start
-from app.graph.state import AgentState
+from app.agents.graph.nodes import agent_node, hitl_node
+from app.agents.graph.routing import route_after_agent, route_after_tools, route_start
+from app.agents.graph.state import AgentState
 from app.tools import ALL_TOOLS
 from app.transcription.graph import transcription_subgraph
 
@@ -142,7 +142,7 @@ async def init_graph():
 
     if added:
         from app.tools.tool_search import build_deferred_tool_setup
-        from app.graph.deferred_cache import refresh_deferred_setup
+        from app.agents.graph.deferred_cache import refresh_deferred_setup
 
         setup = build_deferred_tool_setup(ALL_TOOLS)
         if setup.tool_search_tool:

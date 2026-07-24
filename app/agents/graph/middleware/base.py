@@ -25,7 +25,7 @@ from __future__ import annotations
 from typing import Any, Awaitable, Callable, Protocol
 
 from app.agents.config import Configuration
-from app.graph.state import AgentState
+from app.agents.graph.state import AgentState
 from langgraph.runtime import Runtime
 
 # ---------------------------------------------------------------------------

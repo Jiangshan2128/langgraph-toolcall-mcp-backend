@@ -15,8 +15,8 @@ import logging
 from typing import Callable
 
 from app.agents.config import Configuration
-from app.graph.middleware.base import MiddlewareContext, NodeHandler
-from app.graph.state import AgentState
+from app.agents.graph.middleware.base import MiddlewareContext, NodeHandler
+from app.agents.graph.state import AgentState
 from app.tools.tool_search import DeferredToolSetup
 from langgraph.runtime import Runtime
 
@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 
 
 def _default_deferred_getter() -> DeferredToolSetup | None:
-    from app.graph.deferred_cache import get_deferred_setup_cached
+    from app.agents.graph.deferred_cache import get_deferred_setup_cached
 
     return get_deferred_setup_cached()
 

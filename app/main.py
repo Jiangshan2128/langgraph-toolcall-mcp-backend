@@ -14,7 +14,7 @@ from fastapi import FastAPI
 
 from app.chat.router import chatRouter
 from app.core.config import settings
-from app.graph.builder import init_graph, pool
+from app.agents.graph.builder import init_graph, pool
 from app.tasks.router import taskRouter
 
 @asynccontextmanager

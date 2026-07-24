@@ -8,11 +8,11 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage
 
-from app.graph.middleware.base import MiddlewareContext, Pipeline
-from app.graph.middleware.error_handler import ErrorHandlingMiddleware
-from app.graph.middleware.memory_load import MemoryLoadMiddleware, StoreAccessor
-from app.graph.middleware.system_prompt import SystemPromptMiddleware
-from app.graph.middleware.tool_binding import ToolBindingMiddleware
+from app.agents.graph.middleware.base import MiddlewareContext, Pipeline
+from app.agents.graph.middleware.error_handler import ErrorHandlingMiddleware
+from app.agents.graph.middleware.memory_load import MemoryLoadMiddleware, StoreAccessor
+from app.agents.graph.middleware.system_prompt import SystemPromptMiddleware
+from app.agents.graph.middleware.tool_binding import ToolBindingMiddleware
 
 
 # ======================================================================
@@ -443,7 +443,7 @@ class TestErrorHandlingMiddleware:
 class TestFullPipelineIntegration:
     async def test_end_to_end_data_flow(self):
         """All 4 middlewares + core handler produce correct result."""
-        from app.graph.middleware.memory_load import _RealStoreAccessor
+        from app.agents.graph.middleware.memory_load import _RealStoreAccessor
 
         # Use real store accessor but mock the store to return canned data
         real_accessor = _RealStoreAccessor()

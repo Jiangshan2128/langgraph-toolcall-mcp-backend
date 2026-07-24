@@ -4,7 +4,7 @@ from typing import Literal
 from langchain_core.messages import AIMessage, ToolMessage
 from langgraph.graph import END
 
-from app.graph.state import AgentState
+from app.agents.graph.state import AgentState
 
 
 def route_start(state: AgentState) -> Literal["transcription", "agent"]:

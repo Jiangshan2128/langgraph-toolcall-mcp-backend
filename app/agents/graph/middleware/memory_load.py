@@ -12,8 +12,8 @@ import logging
 from typing import Any, Protocol
 
 from app.agents.config import Configuration
-from app.graph.middleware.base import MiddlewareContext, NodeHandler
-from app.graph.state import AgentState
+from app.agents.graph.middleware.base import MiddlewareContext, NodeHandler
+from app.agents.graph.state import AgentState
 from langgraph.runtime import Runtime
 
 logger = logging.getLogger(__name__)
