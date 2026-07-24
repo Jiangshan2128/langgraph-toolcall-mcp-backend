@@ -38,17 +38,17 @@ class _RealStoreAccessor:
     """Production implementation — delegates to ``app.store.memory``."""
 
     def get_profile(self, store: Any, user_id: str) -> dict | None:
-        from app.store.memory import get_profile
+        from app.agents.memory import get_profile
 
         return get_profile(store, user_id)
 
     def get_tasks(self, store: Any, user_id: str) -> list[dict]:
-        from app.store.memory import get_tasks
+        from app.agents.memory import get_tasks
 
         return get_tasks(store, user_id)
 
     def get_instructions(self, store: Any, user_id: str) -> dict | None:
-        from app.store.memory import get_instructions
+        from app.agents.memory import get_instructions
 
         return get_instructions(store, user_id)
 

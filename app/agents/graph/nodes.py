@@ -25,7 +25,7 @@ from app.agents.graph.middleware import (
     ToolBindingMiddleware,
 )
 from app.agents.graph.state import AgentState
-from app.store.memory import (
+from app.agents.memory import (
     delete_task as _delete_task,
     put_tasks,
 )

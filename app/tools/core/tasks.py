@@ -5,9 +5,9 @@ from langgraph.prebuilt.tool_node import InjectedState, InjectedStore
 from langgraph.store.base import BaseStore
 
 from app.agents.graph.state import AgentState
-from app.store.memory import delete_task as _delete_task
-from app.store.memory import get_tasks
-from app.store.memory import update_task as _update_task
+from app.agents.memory import delete_task as _delete_task
+from app.agents.memory import get_tasks
+from app.agents.memory import update_task as _update_task
 
 
 def _user_id(state: AgentState) -> str:

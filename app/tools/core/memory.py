@@ -14,7 +14,7 @@ from trustcall import create_extractor
 from app.agents.models import get_model
 from app.agents.prompts import CREATE_INSTRUCTIONS, TRUSTCALL_INSTRUCTION
 from app.agents.graph.state import AgentState
-from app.store.memory import (
+from app.agents.memory import (
     get_instructions,
     get_profile,
     get_tasks,
