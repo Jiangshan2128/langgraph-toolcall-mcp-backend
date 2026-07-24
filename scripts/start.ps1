@@ -12,8 +12,8 @@
     Disable hot-reload (useful for production-like runs).
 #>
 param(
-    [int]    $Port      = 8000,
-    [string] $Host      = "0.0.0.0",
+    [int]    $Port    = 8000,
+    [string] $Bind    = "0.0.0.0",
     [switch] $NoReload
 )
 
@@ -39,7 +39,7 @@ Write-Host ""
 $reload = if (-not $NoReload) { "--reload" } else { $null }
 $args = @(
     "app.main:fastApi",
-    "--host", $Host,
+    "--host", $Bind,
     "--port", $Port
 )
 if ($reload) { $args += $reload }

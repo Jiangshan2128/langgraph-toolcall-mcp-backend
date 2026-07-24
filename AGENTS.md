@@ -5,14 +5,14 @@
 AI Note Backend is a FastAPI-based agent service with a two-layer architecture:
 
 ```
-app/                          ← Web application layer (FastAPI)
-└── chat/                     ← Chat & task REST APIs
+app/                          <- Web application layer (FastAPI)
+└── chat/                     <- Chat & task REST APIs
 
-packages/harness/ainote/      ← Agent/LLM core layer
-├── agents/                   ← LangGraph graph, models, prompts, memory
-├── tools/                    ← Agent tools (memory CRUD, search, DingTalk MCP)
-├── config/                   ← App/model/database/tool settings
-└── transcription/            ← Audio/video transcription subgraph
+packages/harness/ainote/      <- Agent/LLM core layer
+├── agents/                   <- LangGraph graph, models, prompts, memory
+├── tools/                    <- Agent tools (memory CRUD, search, DingTalk MCP)
+├── config/                   <- App/model/database/tool settings
+└── transcription/            <- Audio/video transcription subgraph
 ```
 
 Key capabilities:
@@ -26,100 +26,97 @@ Key capabilities:
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────┐
-│                 FastAPI Layer (app/)                  │
-│  ┌─────────────┐  ┌──────────────────┐              │
-│  │ chatRouter  │  │ taskRouter       │              │
-│  └──────┬──────┘  └───────┬──────────┘              │
-└─────────┼─────────────────┼──────────────────────────┘
-          │                 │
-          ▼                 ▼
-┌─────────────────────────────────────────────────────┐
-│           LangGraph Agent (packages/harness)          │
-│  ┌─────────┐   ┌─────────┐   ┌─────────┐           │
-│  │  START  │──▶│  agent  │──▶│  tools  │           │
-│  └─────────┘   └─────────┘   └────┬────┘           │
-│                                    │                │
-│                             ┌──────▼──────┐        │
-│                             │  hitl_node  │        │
-│                             └──────┬──────┘        │
-│                                    │                │
-│                             ┌──────▼──────┐        │
-│                             │   store     │        │
-│                             └──────┬──────┘        │
-│                                    ▼                │
-│                               ┌─────────┐          │
-│                               │   END   │          │
-│                               └─────────┘          │
-└─────────────────────────────────────────────────────┘
+                   FastAPI Layer (app/)
+  ┌─────────────┐  ┌──────────────────┐
+  │ chatRouter  │  │ taskRouter       │
+  └──────┬──────┘  └───────┬──────────┘
+         │                 │
+         ▼                 ▼
+           LangGraph Agent (packages/harness)
+  ┌─────────┐   ┌─────────┐   ┌─────────┐
+  │  START  │──▶│  agent  │──▶│  tools  │
+  └─────────┘   └─────────┘   └────┬────┘
+                                    │
+                             ┌──────▼──────┐
+                             │  hitl_node  │
+                             └──────┬──────┘
+                                    │
+                             ┌──────▼──────┐
+                             │   store     │
+                             └──────┬──────┘
+                                    ▼
+                               ┌─────────┐
+                               │   END   │
+                               └─────────┘
 ```
 
 ## Project Structure
 
 ```
-├── app/                                  ← Web layer
-│   ├── main.py                           ← FastAPI entry + sys.path setup
+├── app/                                  <- Web layer
+│   ├── main.py                           <- FastAPI entry + sys.path setup
 │   ├── chat/
-│   │   ├── router.py                     ← Chat endpoints (POST /chat, /chat/stream, /chat/resume)
-│   │   ├── service.py                    ← Chat LLM invocation, streaming, resume
-│   │   ├── schemas.py                    ← ChatRequest, ChatResponse, ResumeRequest, TaskUpdateRequest
-│   │   ├── task_router.py               ← Task REST endpoints (DELETE/PATCH /tasks/{key})
-│   │   └── task_service.py              ← Task CRUD via store (out-of-band mutations)
+│   │   ├── router.py                     <- Chat endpoints (POST /chat, /chat/stream, /chat/resume)
+│   │   ├── service.py                    <- Chat LLM invocation, streaming, resume
+│   │   ├── schemas.py                    <- ChatRequest, ChatResponse, ResumeRequest, TaskUpdateRequest
+│   │   ├── task_router.py               <- Task REST endpoints (DELETE/PATCH /tasks/{key})
+│   │   └── task_service.py              <- Task CRUD via store (out-of-band mutations)
 │   └── common/
-│       └── dependencies.py              ← FastAPI dependency injection (UserIdFormDep, AudioFileDep, etc.)
+│       └── dependencies.py              <- FastAPI dependency injection (UserIdFormDep, AudioFileDep, etc.)
 │
-├── packages/harness/ainote/              ← LLM/Agent core
+├── packages/harness/ainote/              <- LLM/Agent core
 │   ├── agents/
-│   │   ├── models.py                    ← Configuration, get_model()
-│   │   ├── prompts.py                   ← System prompt, TrustCall instruction, etc.
-│   │   ├── memory.py                    ← Store access layer (profile, tasks, instructions)
-│   │   ├── debug_utils.py               ← HITL debug printing utilities
+│   │   ├── models.py                    <- Configuration, get_model()
+│   │   ├── prompts.py                   <- System prompt, TrustCall instruction, etc.
+│   │   ├── memory.py                    <- Store access layer (profile, tasks, instructions)
+│   │   ├── debug_utils.py               <- HITL debug printing utilities
 │   │   └── graph/
-│   │       ├── __init__.py              ← Lazy re-exports (avoid circular imports)
-│   │       ├── builder.py               ← Graph construction, store init, MCP tool loading
-│   │       ├── nodes.py                 ← agent_node (middleware pipeline), hitl_node (interrupt)
-│   │       ├── routing.py               ← Conditional edges: route_start, route_after_agent, route_after_tools
-│   │       ├── state.py                 ← AgentState (messages, user_id, metadata, audio)
-│   │       ├── thread.py                ← Per-user thread_id resolution with time-based rollover
-│   │       ├── deferred_cache.py        ← Cached deferred DingTalk MCP tool setup
-│   │       ├── tool_binder.py           ← get_model_with_tools(): core + promoted MCP tool binding
+│   │       ├── __init__.py              <- Lazy re-exports (avoid circular imports)
+│   │       ├── builder.py               <- Graph construction, store init, MCP tool loading
+│   │       ├── nodes.py                 <- agent_node (middleware pipeline), hitl_node (interrupt)
+│   │       ├── routing.py               <- Conditional edges: route_start, route_after_agent, route_after_tools
+│   │       ├── state.py                 <- AgentState (messages, user_id, metadata, audio)
+│   │       ├── thread.py                <- Per-user thread_id resolution with time-based rollover
+│   │       ├── deferred_cache.py        <- Cached deferred DingTalk MCP tool setup
+│   │       ├── tool_binder.py           <- get_model_with_tools(): core + promoted MCP tool binding
 │   │       └── middleware/
-│   │           ├── base.py              ← Middleware protocol, Pipeline (Russian-doll pattern)
-│   │           ├── error_handler.py     ← Exception → user-friendly error message
-│   │           ├── memory_load.py       ← Load profile/tasks/instructions from store
-│   │           ├── system_prompt.py     ← Build system prompt with memories + deferred tools
-│   │           └── tool_binding.py      ← Bind ChatOpenAI with tool list via tool_binder
+│   │           ├── base.py              <- Middleware protocol, Pipeline (Russian-doll pattern)
+│   │           ├── error_handler.py     <- Exception -> user-friendly error message
+│   │           ├── memory_load.py       <- Load profile/tasks/instructions from store
+│   │           ├── system_prompt.py     <- Build system prompt with memories + deferred tools
+│   │           └── tool_binding.py      <- Bind ChatOpenAI with tool list via tool_binder
 │   │
 │   ├── tools/
-│   │   ├── __init__.py                 ← ALL_TOOLS list (8 core tools)
-│   │   ├── mcp_loader.py               ← Load MCP server tools from mcp_servers.json
-│   │   ├── tool_search.py              ← Deferred DingTalk MCP tool search & promotion
+│   │   ├── __init__.py                 <- ALL_TOOLS list (8 core tools)
+│   │   ├── mcp_loader.py               <- Load MCP server tools from mcp_servers.json
+│   │   ├── tool_search.py              <- Deferred DingTalk MCP tool search & promotion
 │   │   ├── core/
-│   │   │   ├── memory.py               ← update_profile, update_tasks, update_instructions (TrustCall)
+│   │   │   ├── memory.py               <- update_profile, update_tasks, update_instructions (TrustCall)
 │   │   │   │                             Also defines Profile & Task Pydantic models
-│   │   │   └── tasks.py                ← get_tasks, mark_task_done, update_task_priority, delete_task_by_title
+│   │   │   └── tasks.py                <- get_tasks, mark_task_done, update_task_priority, delete_task_by_title
 │   │   └── community/
-│   │       ├── search.py               ← web_search (Tavily)
-│   │       ├── dingtalk.py             ← DingTalk MCP tool loading
+│   │       ├── search.py               <- web_search (Tavily)
+│   │       ├── dingtalk.py             <- DingTalk MCP tool loading
 │   │       └── __init__.py
 │   │
 │   ├── config/
-│   │   ├── __init__.py                 ← Re-exports from focused config modules
-│   │   ├── settings.py                 ← Unified settings proxy (delegates to sub-modules)
-│   │   ├── app_config.py               ← FastAPI app title, version, etc.
-│   │   ├── model_config.py             ← LLM provider settings (GLM_API_KEY, etc.)
-│   │   ├── database_config.py          ← DATABASE_URL, etc.
-│   │   └── tool_config.py              ← Tavily, MCP, etc.
+│   │   ├── __init__.py                 <- Re-exports from focused config modules
+│   │   ├── settings.py                 <- Unified settings proxy (delegates to sub-modules)
+│   │   ├── app_config.py               <- FastAPI app title, version, etc.
+│   │   ├── model_config.py             <- LLM provider settings (GLM_API_KEY, etc.)
+│   │   ├── database_config.py          <- DATABASE_URL, etc.
+│   │   └── tool_config.py              <- Tavily, MCP, etc.
 │   │
 │   └── transcription/
-│       ├── graph.py                    ← Transcription subgraph (Groq Whisper)
-│       ├── service.py                  ← _transcribe, get_groq_client
-│       ├── _ffmpeg.py                  ← Audio splitting utilities
-│       └── schemas.py                  ← Transcription input/output models
+│       ├── graph.py                    <- Transcription subgraph (Groq Whisper)
+│       ├── service.py                  <- _transcribe, get_groq_client
+│       ├── _ffmpeg.py                  <- Audio splitting utilities
+│       └── schemas.py                  <- Transcription input/output models
 │
 ├── tests/
 ├── packages/harness/__init__.py
 ├── pyproject.toml
+├── mcp_servers.json                    <- MCP server configuration (DingTalk, RAG tools)
 └── AGENTS.md
 ```
 
@@ -131,7 +128,7 @@ Key capabilities:
 |------|---------|
 | `builder.py` | Graph construction, checkpointing, store initialization, MCP tool loading |
 | `nodes.py` | Middleware-pipeline agent node, HITL node with interrupt/approval logic |
-| `routing.py` | Conditional edges: transcription → agent → tools → HITL → END |
+| `routing.py` | Conditional edges: transcription -> agent -> tools -> HITL -> END |
 | `state.py` | AgentState definition (messages, user_id, metadata, audio) |
 | `thread.py` | Per-user thread_id resolution with 5-minute idle rollover |
 | `tool_binder.py` | `get_model_with_tools()`: selects core + promoted MCP tools to bind to LLM |
@@ -141,11 +138,11 @@ Key capabilities:
 The agent node uses a Russian-doll middleware pipeline for separation of concerns:
 
 ```
-ErrorHandlingMiddleware     ← outermost: catch everything
-  └── MemoryLoadMiddleware   ← load profile/tasks/instructions from store
-      └── SystemPromptMiddleware  ← build system prompt from memories
-          └── ToolBindingMiddleware  ← bind tools to ChatOpenAI
-              └── core_handler  ← LLM invocation
+ErrorHandlingMiddleware     <- outermost: catch everything
+  └── MemoryLoadMiddleware   <- load profile/tasks/instructions from store
+      └── SystemPromptMiddleware  <- build system prompt from memories
+          └── ToolBindingMiddleware  <- bind tools to ChatOpenAI
+              └── core_handler  <- LLM invocation
 ```
 
 ### 3. Tools (`packages/harness/ainote/tools/`)
@@ -166,12 +163,12 @@ ErrorHandlingMiddleware     ← outermost: catch everything
 
 **Flow:**
 ```
-1. LLM calls update_tasks → TrustCall extracts proposed changes
+1. LLM calls update_tasks -> TrustCall extracts proposed changes
 2. Tool returns proposals JSON (type: "task_proposals") — no store write
-3. route_after_tools → hitl_node
+3. route_after_tools -> hitl_node
 4. hitl_node calls interrupt() with proposal payload
 5. Frontend shows UI for approve/edit/reject
-6. User submits → resume() with approval data
+6. User submits -> resume() with approval data
 7. hitl_node applies approved/edited changes to store
 8. Edge back to agent for acknowledgment
 ```
@@ -193,18 +190,7 @@ ErrorHandlingMiddleware     ← outermost: catch everything
 
 Core + promoted selection is done inside `get_model_with_tools()` — there is no separate router module.
 
-### 6. RAG Knowledge Base
-
-The MCP server `rag_kb` provides two complementary search tools:
-
-| Tool | Engine | Best For |
-|------|--------|----------|
-| `search_docs` | Qdrant dense+sparse → RRF | Concrete facts, parameters |
-| `search_graph` | GraphRAG local/global search | Overviews, relationships, multi-hop |
-
-The client LLM chooses which to call based on tool descriptions (no server-side router).
-
-### 7. Configuration
+### 6. Configuration
 
 **Environment Variables (`.env`):**
 ```env
@@ -276,14 +262,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parent / "packages" / "harness")
 **Cause:** Tool not in `ALL_TOOLS` or filtered by binding strategy
 **Fix:** Check `packages/harness/ainote/tools/__init__.py` and tool_binder logs.
 
-### 4. GraphRAG Index Fails on Community Reports
-**Cause:** Non-OpenAI models (DeepSeek, GLM) don't support `response_format: json_schema`
-**Fix:** Use `doubao` (supports json_schema) as the `community_reports` completion model, or monkey-patch `CommunityReportsExtractor` with fallback parsing.
-
-### 5. GraphRAG Communities Missing Entities
-**Cause:** `cluster_graph.use_lcc: true` (default) discards non-largest connected components
-**Fix:** Set `use_lcc: false` in `settings.yaml` when documents span independent domains.
-
 ## Testing
 
 ```bash
@@ -301,8 +279,6 @@ python -m pytest tests/test_graph.py -v
 - **TrustCall**: Structured extraction for task/profile updates
 - **FastAPI**: HTTP API framework
 - **PostgreSQL** (optional): Persistent checkpoint and memory store
-- **Qdrant**: Vector store for RAG knowledge base
-- **GraphRAG**: Microsoft knowledge graph indexing and search
 - **MCP**: Model Context Protocol (DingTalk tools, RAG tools)
 - **Groq Whisper**: Audio transcription
 - **Tavily**: Web search

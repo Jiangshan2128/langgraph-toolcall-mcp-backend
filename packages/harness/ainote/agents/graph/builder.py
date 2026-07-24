@@ -28,6 +28,9 @@ if settings.DATABASE_URL:
         from psycopg_pool import ConnectionPool
 
         # 同步连接池 — PostgresStore 需要同步连接
+        # min_size=1: eagerly connect on startup.
+        # If the database is unreachable the app will fail to start — this is
+        # intentional so the operator notices immediately.
         pool = ConnectionPool(
             settings.DATABASE_URL,
             min_size=1,

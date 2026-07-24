@@ -49,7 +49,7 @@ _MCP_CONFIG_NAMES = ("mcp_servers.json", "extensions_config.json")
 
 def _project_root() -> Path:
     """Return the project root (parent of ``app/``)."""
-    return Path(__file__).resolve().parents[2]
+    return Path(__file__).resolve().parents[4]
 
 
 def _resolve_config_path() -> Path | None:
