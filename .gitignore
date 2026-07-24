@@ -15,15 +15,8 @@ wheels/
 # MCP server configuration (copy from mcp_servers.example.json)
 mcp_servers.json
 
-# Qdrant local vector store (runtime data, auto-generated)
-mcp/knowledge_base/qdrant_data/
-
-# RAG index cache (auto-generated MD5 hashes)
-mcp/knowledge_base/documents/.index_cache.json
-
-# Knowledge base documents (local files, not code)
-mcp/knowledge_base/documents/*.docx
-mcp/knowledge_base/documents/*.md
+# MCP server moved to sibling repo (../mcp-server/); ignore remnants
+mcp/
 
 # Office temp files
 ~$*
@@ -32,11 +25,4 @@ mcp/knowledge_base/documents/*.md
 .cache/
 
 # Test artifacts
-qdrant_data_test_copy/
 chunks_report.txt
-
-# GraphRAG runtime (auto-generated + secrets)
-mcp/graphrag/output/
-mcp/graphrag/cache/
-mcp/graphrag/logs/
-mcp/graphrag/.env

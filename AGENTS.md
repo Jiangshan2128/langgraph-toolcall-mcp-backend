@@ -19,7 +19,6 @@ Key capabilities:
 - **Task Management**: Long-term memory for user tasks (CRUD via both chat agent and REST API)
 - **Human-in-the-Loop (HITL)**: Interactive approval workflow before task mutations
 - **DingTalk Integration**: MCP tools for DingTalk office suite operations
-- **Multi-Model Support**: Configurable LLM providers (GLM, DeepSeek, Doubao, OpenAI-compatible)
 - **RAG Knowledge Base**: Qdrant + Qwen text-embedding-v4 (dense+sparse hybrid search)
 - **GraphRAG**: Entity-relationship knowledge graph for global overviews and multi-hop reasoning
 - **Transcription**: Audio/video transcription via Groq Whisper
