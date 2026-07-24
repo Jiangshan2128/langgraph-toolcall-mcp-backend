@@ -12,7 +12,7 @@ from langchain_core.messages import BaseMessage
 from langchain_core.tools import BaseTool
 from langchain_openai import ChatOpenAI
 
-from app.agents.config import get_model
+from app.agents.models import get_model
 from app.tools import ALL_TOOLS
 
 logger = logging.getLogger(__name__)

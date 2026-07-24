@@ -11,7 +11,7 @@ from __future__ import annotations
 import logging
 from typing import Any, Protocol
 
-from app.agents.config import Configuration
+from app.agents.models import Configuration
 from app.agents.graph.middleware.base import MiddlewareContext, NodeHandler
 from app.agents.graph.state import AgentState
 from langgraph.runtime import Runtime

@@ -10,11 +10,8 @@ from langgraph.prebuilt.tool_node import InjectedState, InjectedStore
 from langgraph.store.base import BaseStore
 from trustcall import create_extractor
 
-from app.agents.config import (
-    CREATE_INSTRUCTIONS,
-    TRUSTCALL_INSTRUCTION,
-    get_model,
-)
+from app.agents.models import get_model
+from app.agents.prompts import CREATE_INSTRUCTIONS, TRUSTCALL_INSTRUCTION
 from app.agents.graph.state import AgentState
 from app.schemas.domain import Profile, Task
 from app.store.memory import (

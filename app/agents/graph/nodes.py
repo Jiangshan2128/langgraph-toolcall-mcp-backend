@@ -5,10 +5,8 @@ from langchain_core.messages import AIMessage, SystemMessage, ToolMessage, Human
 from langgraph.runtime import Runtime
 from langgraph.types import interrupt
 
-from app.agents.config import (
-    MODEL_SYSTEM_MESSAGE,
-    Configuration,
-)
+from app.agents.models import Configuration
+from app.agents.prompts import MODEL_SYSTEM_MESSAGE
 from app.core.debug_utils import (
     build_hitl_summary,
     print_final_upserts,

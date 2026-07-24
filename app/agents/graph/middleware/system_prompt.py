@@ -14,7 +14,7 @@ from __future__ import annotations
 import logging
 from typing import Callable
 
-from app.agents.config import Configuration
+from app.agents.models import Configuration
 from app.agents.graph.middleware.base import MiddlewareContext, NodeHandler
 from app.agents.graph.state import AgentState
 from app.tools.tool_search import DeferredToolSetup
@@ -35,7 +35,7 @@ def _default_deferred_getter() -> DeferredToolSetup | None:
 
 
 def _default_template() -> str:
-    from app.agents.config import MODEL_SYSTEM_MESSAGE
+    from app.agents.prompts import MODEL_SYSTEM_MESSAGE
 
     return MODEL_SYSTEM_MESSAGE
 

@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import logging
 
-from app.agents.config import Configuration
+from app.agents.models import Configuration
 from app.agents.graph.middleware.base import MiddlewareContext, NodeHandler
 from app.agents.graph.state import AgentState
 from langchain_core.messages import AIMessage
