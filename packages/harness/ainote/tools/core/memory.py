@@ -101,7 +101,8 @@ async def update_profile(
         tool_choice="Profile",
     )
     result = await extractor.ainvoke(
-        {"messages": updated_messages, "existing": existing_memories}
+        {"messages": updated_messages, "existing": existing_memories},
+        {"recursion_limit": 100},
     )
 
     for response, metadata in zip(result["responses"], result["response_metadata"]):
