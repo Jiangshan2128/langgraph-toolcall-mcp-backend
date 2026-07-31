@@ -40,6 +40,14 @@ if settings.DATABASE_URL:
                 "prepare_threshold": None,
                 "row_factory": dict_row,
             },
+            # 每次借出连接时 ping 验证存活，死了自动重建 — 防止 Supabase
+            # 关闭空闲连接后，池子把死连接借出去导致
+            # "server closed the connection unexpectedly"
+            check=ConnectionPool.check_connection,
+            # 连接生命周期管理：定期轮换 + 回收空闲，降低被服务器掐断的概率
+            max_lifetime=1800,   # 30 min 强制重建连接
+            max_idle=600,        # 10 min 空闲回收
+            reconnect_timeout=10,
         )
         store = PostgresStore(conn=pool)
         store.setup()  # 幂等：自动建表 → 任务/画像/指令持久化到 Supabase
