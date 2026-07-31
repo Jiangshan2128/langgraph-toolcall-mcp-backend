@@ -36,6 +36,11 @@ def _notify_thread(user_id: str, text: str):
         logger.warning("Failed to notify thread for user=%s: %s", user_id, exc)
 
 
+def list_tasks(user_id: str = "default") -> list[dict]:
+    """Return all existing tasks for a user."""
+    return get_tasks(builder.store, user_id)
+
+
 def delete_task(key: str, user_id: str = "default") -> list[dict]:
     """Delete a task and return the updated task list."""
     tasks_before = get_tasks(builder.store, user_id)

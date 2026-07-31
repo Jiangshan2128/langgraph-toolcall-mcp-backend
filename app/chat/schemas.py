@@ -42,3 +42,10 @@ class TaskUpdateRequest(BaseModel):
         ...,
         description='要更新的字段，如 {"status": "done", "priority": "P0"}',
     )
+
+
+class TaskListResponse(BaseModel):
+    """Response payload for task list operations."""
+
+    ok: bool = Field(default=True, description="操作是否成功")
+    tasks: list[dict] = Field(default_factory=list, description="任务列表")
