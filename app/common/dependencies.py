@@ -20,6 +20,14 @@ from fastapi import File, Form, Query, UploadFile
 UserIdFormDep = Annotated[str, Form(description="用户标识")]
 """``user_id`` extracted from a multipart form field."""
 
+SessionIdFormDep = Annotated[str, Form(...)]
+"""``session_id`` extracted from a multipart form field.  Required: the frontend
+generates it, so it must be passed again to resume or continue a conversation.
+
+``Form(...)`` marks it required so a missing field yields a clean 422
+("Field required") instead of FastAPI passing ``...`` into validation and
+crashing while serializing the error body."""
+
 MessageFormDep = Annotated[str, Form(description="用户消息")]
 """``message`` extracted from a multipart form field."""
 
@@ -34,6 +42,9 @@ AudioFileDep = Annotated[UploadFile | None, File(description="原始音频文件
 
 UserIdQueryDep = Annotated[str, Query(description="用户标识")]
 """``user_id`` extracted from a query parameter (e.g. ``?user_id=abc``)."""
+
+SessionIdQueryDep = Annotated[str, Query(description="会话标识（前端生成的随机数）")]
+"""``session_id`` extracted from a query parameter (e.g. ``?session_id=abc``)."""
 
 
 # ── Audio upload helper ────────────────────────────────────────────────

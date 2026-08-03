@@ -29,6 +29,10 @@ class ResumeRequest(BaseModel):
     """
 
     user_id: str = Field(default="default", description="用户标识")
+    session_id: str = Field(
+        ...,
+        description="会话标识（前端生成的随机数）。resume 必须传与发起中断时相同的 session_id，才能恢复到被挂起的会话线程。",
+    )
     decision: dict = Field(
         ...,
         description=(

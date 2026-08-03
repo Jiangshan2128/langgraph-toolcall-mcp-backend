@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
 
-from app.common.dependencies import UserIdQueryDep
+from app.common.dependencies import SessionIdQueryDep, UserIdQueryDep
 from app.chat.schemas import TaskListResponse, TaskUpdateRequest
 from app.chat.task_service import delete_task, list_tasks, update_task
 
@@ -32,10 +32,18 @@ def _as_http_error(e: Exception) -> None:
 
 
 @taskRouter.delete("/{key}", response_model=TaskListResponse)
-async def delete_task_endpoint(key: str, user_id: UserIdQueryDep = "default") -> TaskListResponse:
-    """删除指定 task，返回更新后的完整任务列表。"""
+async def delete_task_endpoint(
+    key: str,
+    user_id: UserIdQueryDep = "default",
+    session_id: SessionIdQueryDep = None,
+) -> TaskListResponse:
+    """删除指定 task，返回更新后的完整任务列表。
+
+    ``session_id`` 可选：传入时会在对应会话线程注入删除通知，防止 LLM
+    下次误判并重加已删除任务。
+    """
     try:
-        tasks = delete_task(key, user_id=user_id)
+        tasks = delete_task(key, user_id=user_id, session_id=session_id)
         return {"ok": True, "tasks": tasks}
     except Exception as e:
         _as_http_error(e)
@@ -46,10 +54,14 @@ async def update_task_endpoint(
     key: str,
     request: TaskUpdateRequest,
     user_id: UserIdQueryDep = "default",
+    session_id: SessionIdQueryDep = None,
 ) -> TaskListResponse:
-    """更新指定 task 的部分字段，返回更新后的完整任务列表。"""
+    """更新指定 task 的部分字段，返回更新后的完整任务列表。
+
+    ``session_id`` 可选：传入时会在对应会话线程注入更新通知。
+    """
     try:
-        tasks = update_task(key, user_id=user_id, updates=request.updates)
+        tasks = update_task(key, user_id=user_id, updates=request.updates, session_id=session_id)
         return {"ok": True, "tasks": tasks}
     except Exception as e:
         _as_http_error(e)
