@@ -1,14 +1,14 @@
 import json as _json
 import logging
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from typing import Annotated, Literal, Optional
 
 from langchain.tools import tool
 from langchain_core.messages import SystemMessage, merge_message_runs
 from langgraph.prebuilt.tool_node import InjectedState, InjectedStore
 from langgraph.store.base import BaseStore
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from trustcall import create_extractor
 
 from ainote.agents.models import get_model
@@ -48,7 +48,45 @@ class Task(BaseModel):
     priority: Literal["P0", "P1", "P2"] = Field(
         default="P1", description="P0 = urgent today, P1 = important, P2 = routine"
     )
-    time: str = Field(default="", description="when to start the task, e.g. 'today' or 'next week'")
+    time: Optional[date] = Field(
+        default=None,
+        description="Concrete start date of the task (ISO format, e.g. 2026-09-07)",
+    )
+
+    @field_validator("time", mode="before")
+    @classmethod
+    def _parse_time(cls, v):
+        """Coerce loose date strings (e.g. '9/7/2026', 'September 7, 2026')
+        to ``date``. LLM output for the ``time`` field isn't guaranteed to be
+        strict ISO, so accept common formats instead of letting validation
+        bounce back into TrustCall's retry loop.
+        """
+        if v is None or isinstance(v, date):
+            return v
+        if isinstance(v, datetime):
+            return v.date()
+        if not isinstance(v, str):
+            return v
+        s = v.strip()
+        try:
+            return date.fromisoformat(s)  # 2026-09-07
+        except ValueError:
+            pass
+        for fmt in (
+            "%m/%d/%Y",      # 9/7/2026, 09/07/2026
+            "%d/%m/%Y",      # 7/9/2026 (day-first, only reached if month>12)
+            "%m-%d-%Y",      # 09-07-2026
+            "%Y-%m-%d",      # 2026-9-7
+            "%Y/%m/%d",      # 2026/9/7
+            "%Y.%m.%d",      # 2026.9.7
+            "%b %d, %Y",     # Sep 7, 2026
+            "%B %d, %Y",     # September 7, 2026
+        ):
+            try:
+                return datetime.strptime(s, fmt).date()
+            except ValueError:
+                continue
+        return v  # 让 Pydantic 抛原生错误，TrustCall 校验循环可感知
     deadline: Optional[str] = Field(
         default=None,
         description="Deadline as YYYY-MM-DD or descriptive text",

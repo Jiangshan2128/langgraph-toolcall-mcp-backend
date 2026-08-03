@@ -1,4 +1,8 @@
-from pydantic import BaseModel, Field
+from datetime import date
+
+from pydantic import BaseModel, Field, field_validator
+
+from ainote.tools.core.memory import Task
 
 
 class ChatRequest(BaseModel):
@@ -44,8 +48,33 @@ class TaskUpdateRequest(BaseModel):
     )
 
 
+class TaskOut(Task):
+    """A task as returned to the frontend (adds the store ``key``).
+
+    Inherits every field and the loose date parser from the agent-side
+    ``Task`` so the Swagger schema shows the real structure (``time`` as
+    ``string(date)``) instead of an opaque dict.
+    """
+
+    key: str = Field(description="Store key, used for PATCH / DELETE")
+
+    @field_validator("time", mode="before")
+    @classmethod
+    def _time_lenient(cls, v):
+        """Never fail the whole list over one legacy ``time`` value.
+
+        Explicitly call the inherited parser rather than relying on validator
+        ordering. ``Task._parse_time`` returns a ``date`` when it parses, or
+        the input unchanged when it can't (e.g. legacy "next week"). Drop the
+        unparseable values to ``None`` instead of raising — a single bad value
+        should not turn ``GET /tasks/list`` into a 500.
+        """
+        parsed = Task._parse_time(v)
+        return parsed if isinstance(parsed, date) else None
+
+
 class TaskListResponse(BaseModel):
     """Response payload for task list operations."""
 
     ok: bool = Field(default=True, description="操作是否成功")
-    tasks: list[dict] = Field(default_factory=list, description="任务列表")
+    tasks: list[TaskOut] = Field(default_factory=list, description="任务列表")
