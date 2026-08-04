@@ -6,11 +6,12 @@ from ainote.agents.graph import builder
 from ainote.agents.memory import delete_task as _delete_task
 from ainote.agents.memory import get_tasks
 from ainote.agents.memory import update_task as _update_task
+from app.chat.thread import resolve_thread_id
 
 logger = logging.getLogger(__name__)
 
 
-def _notify_thread(session_id: str | None, text: str):
+def _notify_thread(user_id: str, session_id: str | None, text: str):
     """Append a system notification to the agent's conversation thread.
 
     The REST task endpoints mutate the store out-of-band (bypassing LangGraph),
@@ -22,14 +23,16 @@ def _notify_thread(session_id: str | None, text: str):
     OpenAI-compatible endpoints only honor the first system message as the true
     system prompt and underweight mid-thread system messages.
 
-    ``session_id`` is the frontend-generated thread_id. When omitted (the
-    frontend did not pass one), the notification is skipped — we cannot know
-    which conversation to notify.
+    ``session_id`` is the frontend-generated conversation id. It is combined
+    with ``user_id`` into the thread_id (same helper as the chat service), so
+    the notification lands on the right per-account thread. When ``session_id``
+    is omitted (the frontend did not pass one), the notification is skipped —
+    we cannot know which conversation to notify.
     """
     if not session_id:
         return
     try:
-        config = {"configurable": {"thread_id": session_id}}
+        config = {"configurable": {"thread_id": resolve_thread_id(user_id, session_id)}}
         builder.graph.update_state(
             config,
             {"messages": [HumanMessage(content=text)]},
@@ -56,10 +59,11 @@ def delete_task(
     _delete_task(builder.store, user_id, key)
 
     _notify_thread(
+        user_id,
         session_id,
         f"[SYSTEM NOTIFICATION] Task '{title}' (key={key}) was DELETED via the "
         f"REST API by the user. It no longer exists in the task list. Do NOT "
-        f"re-add it. If asked for the task list, report it as deleted.",
+        f"re-add it by yourself unless the user explicitly requests it.",
     )
     return get_tasks(builder.store, user_id)
 
@@ -78,6 +82,7 @@ def update_task(
     title = task.get("title", "Unknown") if task else "Unknown"
 
     _notify_thread(
+        user_id,
         session_id,
         f"[SYSTEM NOTIFICATION] Task '{title}' (key={key}) was UPDATED via the "
         f"REST API. Fields changed: {updates}. Current task list reflects this.",
