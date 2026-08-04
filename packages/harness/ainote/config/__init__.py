@@ -9,6 +9,7 @@ from ainote.config.app_config import AppConfig, get_app_config
 from ainote.config.database_config import DatabaseConfig, get_database_config
 from ainote.config.model_config import ModelConfig, get_model_config
 from ainote.config.tool_config import ToolConfig, get_tool_config
+from ainote.config.auth_config import AuthConfig, get_auth_config
 from ainote.config.model_provider import ModelConfigYAML, ModelProvider
 from ainote.config.model_factory import PROVIDER_REGISTRY, create_model, get_model_config_yaml
 
@@ -17,6 +18,7 @@ __all__ = [
     "DatabaseConfig",
     "ModelConfig",
     "ToolConfig",
+    "AuthConfig",
     "ModelProvider",
     "ModelConfigYAML",
     "PROVIDER_REGISTRY",
@@ -24,6 +26,7 @@ __all__ = [
     "get_database_config",
     "get_model_config",
     "get_tool_config",
+    "get_auth_config",
     "get_model_config_yaml",
     "create_model",
 ]

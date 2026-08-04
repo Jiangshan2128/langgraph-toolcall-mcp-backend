@@ -6,8 +6,13 @@ from ainote.tools.core.memory import Task
 
 
 class ChatRequest(BaseModel):
+    """Deprecated request body kept for OpenAPI reference.
+
+    The live endpoints read identity from the Supabase access token
+    (``Authorization: Bearer ...``) — a ``user_id`` in the body is ignored.
+    """
+
     message: str = Field(default="", description="用户消息")
-    user_id: str = Field(default="default", description="用户标识")
     language: str | None = Field(default=None, description="音频语言，如 'zh', 'en'")
 
 
@@ -25,10 +30,10 @@ class ResumeRequest(BaseModel):
 
     The ``decision`` field is passed directly as the ``resume`` payload
     to ``Command(resume=...)`` — its shape must match what the tool's
-    ``interrupt()`` call expects.
+    ``interrupt()`` call expects. The caller's ``user_id`` comes from the
+    Supabase access token, never from the body.
     """
 
-    user_id: str = Field(default="default", description="用户标识")
     session_id: str = Field(
         ...,
         description="会话标识（前端生成的随机数）。resume 必须传与发起中断时相同的 session_id，才能恢复到被挂起的会话线程。",
