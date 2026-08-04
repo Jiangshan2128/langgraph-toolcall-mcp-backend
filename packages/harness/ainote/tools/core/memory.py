@@ -140,7 +140,7 @@ async def update_profile(
     )
     result = await extractor.ainvoke(
         {"messages": updated_messages, "existing": existing_memories},
-        {"recursion_limit": 100},
+        {"recursion_limit": 25},
     )
 
     for response, metadata in zip(result["responses"], result["response_metadata"]):
@@ -172,11 +172,22 @@ async def update_tasks(
     )
 
     instruction = TRUSTCALL_INSTRUCTION.format(time=datetime.now().isoformat())
-    updated_messages = list(
-        merge_message_runs(
-            messages=[SystemMessage(content=instruction)] + state["messages"][:-1]
-        )
+    # TrustCall only needs the latest user intent + the current task list (in
+    # `existing`). Feeding the whole history pollutes the extraction: stale
+    # "No task changes detected." results and "[SYSTEM NOTIFICATION]" delete
+    # notices (which say "Do NOT re-add it") get re-injected and make the
+    # extractor produce nothing on subsequent turns.
+    latest_user = next(
+        (
+            m
+            for m in reversed(state["messages"])
+            if m.type == "human" and getattr(m, "content", "").strip()
+        ),
+        None,
     )
+    updated_messages = [SystemMessage(content=instruction)]
+    if latest_user is not None:
+        updated_messages.append(latest_user)
 
     extractor = create_extractor(
         get_model(),
@@ -185,7 +196,8 @@ async def update_tasks(
         enable_inserts=True,
     )
     result = await extractor.ainvoke(
-        {"messages": updated_messages, "existing": existing_memories}
+        {"messages": updated_messages, "existing": existing_memories},
+        {"recursion_limit": 25},
     )
 
     # ── Collect proposed changes (NO interrupt, NO store write) ──
