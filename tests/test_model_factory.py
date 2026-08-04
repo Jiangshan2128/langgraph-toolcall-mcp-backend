@@ -31,12 +31,15 @@ model_providers:
     api_key_env: DEEPSEEK_API_KEY
     temperature: 0.0
     thinking: false
+    max_retries: 3
+    fallback_to: glm
   - name: glm
     provider: openai
     model: glm-5.1
     base_url: https://open.bigmodel.cn/api/paas/v4/
     api_key_env: GLM_API_KEY
     temperature: 0.0
+    max_retries: 5
 """
 
 
@@ -151,12 +154,175 @@ def test_legacy_fallback_deepseek(monkeypatch: pytest.MonkeyPatch):
     _reset_config_cache()
 
 
-def test_get_model_signature_unchanged():
+def test_get_model_is_single_business_entry():
+    """get_model() is the only entry the business layer uses; it accepts name."""
     from ainote.agents.models import get_model
+    from langchain_core.language_models import BaseChatModel
+    from ainote.config.model_factory import create_model
 
     get_model.cache_clear()
-    # With the real backend config.yaml + .env present, get_model() must
-    # still return a BaseChatModel (ChatOpenAI or ChatDeepSeek).
-    m = get_model()
-    assert isinstance(m, (ChatOpenAI, ChatDeepSeek))
+    # No name → active_model (deepseek-chat); named → that provider.
+    # Both must be BaseChatModel (raw or failover wrapper).
+    assert isinstance(get_model(), BaseChatModel)
+    assert isinstance(get_model("deepseek-reasoning"), BaseChatModel)
+    # Named call must resolve to the same provider as the factory's raw build
+    # (unwrapping the failover wrapper when present).
+    named = get_model("deepseek-reasoning")
+    primary = named.models[0] if hasattr(named, "models") else named
+    assert isinstance(primary, type(create_model("deepseek-reasoning")))
     get_model.cache_clear()
+
+
+# ── Failover tests ──────────────────────────────────────────────────────
+
+
+def test_failover_chain_builds(tmp_config):
+    from ainote.config.model_factory import create_model_with_failover
+    from ainote.config.model_failover import FailoverChatModel
+
+    m = create_model_with_failover("deepseek-chat")
+    assert isinstance(m, FailoverChatModel)
+    assert len(m.models) == 2
+    assert isinstance(m.models[0], ChatDeepSeek)   # primary
+    assert isinstance(m.models[1], ChatOpenAI)     # fallback glm
+
+
+def test_no_fallback_returns_raw_model(tmp_config):
+    from ainote.config.model_factory import create_model_with_failover
+
+    m = create_model_with_failover("glm")
+    assert isinstance(m, ChatOpenAI)  # glm has no fallback → raw model
+
+
+def test_max_retries_plumbed(tmp_config):
+    # deepseek-chat has max_retries: 3, glm has max_retries: 5
+    m = create_model("deepseek-chat")
+    assert m.max_retries == 3
+    m2 = create_model("glm")
+    assert m2.max_retries == 5
+
+
+def test_failover_bind_tools_and_invoke(tmp_config, monkeypatch):
+    """Primary raises 503 → backup answers; both raw and bound paths."""
+    from langchain_core.messages import AIMessage, HumanMessage
+    from langchain_core.outputs import ChatGeneration, ChatResult
+    from ainote.config.model_factory import create_model_with_failover
+    from ainote.config.model_failover import FailoverChatModel
+
+    primary = create_model("deepseek-chat")
+    backup = create_model("glm")
+    failover = FailoverChatModel(models=[primary, backup])
+
+    # Primary's _generate/_agenerate raise InternalServerError (503)
+    def _boom(*a, **k):
+        import httpx
+        import openai
+        req = httpx.Request("POST", "http://x")
+        raise openai.InternalServerError(
+            "503",
+            response=httpx.Response(503, request=req),
+            body={"error": {"message": "Service is too busy"}},
+        )
+
+    async def _boom_async(*a, **k):
+        _boom(*a, **k)
+
+    monkeypatch.setattr(primary, "_generate", _boom)
+    monkeypatch.setattr(primary, "_agenerate", _boom_async)
+
+    def _ok(*a, **k):
+        return ChatResult(
+            generations=[ChatGeneration(message=AIMessage(content="ok from backup"))]
+        )
+
+    async def _ok_async(*a, **k):
+        return _ok(*a, **k)
+
+    monkeypatch.setattr(backup, "_generate", _ok)
+    monkeypatch.setattr(backup, "_agenerate", _ok_async)
+
+    # Raw invoke path
+    res = failover.invoke([HumanMessage(content="hi")])
+    assert res.content == "ok from backup"
+
+    # Raw ainvoke path
+    import asyncio
+    res = asyncio.run(failover.ainvoke([HumanMessage(content="hi")]))
+    assert res.content == "ok from backup"
+
+    # Bound path (bind_tools → runnable → invoke)
+    bound = failover.bind_tools([{"type": "function", "function": {"name": "t", "description": "d", "parameters": {"type": "object", "properties": {}}}}])
+    res = bound.invoke([HumanMessage(content="hi")])
+    assert res.content == "ok from backup"
+
+
+def test_non_transient_error_propagates(tmp_config, monkeypatch):
+    """BadRequestError (400) must propagate — no fallback on permanent errors."""
+    from langchain_core.messages import HumanMessage
+    from ainote.config.model_factory import create_model
+    from ainote.config.model_failover import FailoverChatModel
+
+    primary = create_model("deepseek-chat")
+    backup = create_model("glm")
+    failover = FailoverChatModel(models=[primary, backup])
+
+    def _boom(*a, **k):
+        import httpx
+        import openai
+        req = httpx.Request("POST", "http://x")
+        raise openai.BadRequestError(
+            "400",
+            response=httpx.Response(400, request=req),
+            body={"error": {"message": "bad"}},
+        )
+
+    monkeypatch.setattr(primary, "_generate", _boom)
+    monkeypatch.setattr(backup, "_generate", lambda *a, **k: None)  # should not be reached
+
+    import httpx
+    import openai
+    with pytest.raises(openai.BadRequestError):
+        failover.invoke([HumanMessage(content="hi")])
+
+
+def test_fallback_cycle_rejected(tmp_path, monkeypatch):
+    yaml_str = """
+active_model: a
+model_providers:
+  - name: a
+    provider: openai
+    model: m
+    api_key_env: GLM_API_KEY
+    fallback_to: b
+  - name: b
+    provider: openai
+    model: m2
+    api_key_env: GLM_API_KEY
+    fallback_to: a
+"""
+    p = tmp_path / "config.yaml"
+    p.write_text(yaml_str, encoding="utf-8")
+    monkeypatch.setenv("AINOTE_CONFIG_YAML", str(p))
+    _reset_config_cache()
+    with pytest.raises(ValidationError):
+        get_model_config_yaml()
+    _reset_config_cache()
+
+
+def test_fallback_to_unknown_rejected(tmp_path, monkeypatch):
+    yaml_str = """
+active_model: a
+model_providers:
+  - name: a
+    provider: openai
+    model: m
+    api_key_env: GLM_API_KEY
+    fallback_to: nope
+"""
+    p = tmp_path / "config.yaml"
+    p.write_text(yaml_str, encoding="utf-8")
+    monkeypatch.setenv("AINOTE_CONFIG_YAML", str(p))
+    _reset_config_cache()
+    with pytest.raises(ValidationError):
+        get_model_config_yaml()
+    _reset_config_cache()

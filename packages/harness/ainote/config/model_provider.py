@@ -19,6 +19,8 @@ class ModelProvider(BaseModel):
     temperature: float = 0.0
     thinking: bool = False         # False → send extra_body thinking-disabled (DeepSeek)
     max_tokens: int | None = None
+    max_retries: int | None = None  # override OpenAI SDK default (2)
+    fallback_to: str | None = None  # backup provider name for transient-error failover
     model_kwargs: dict = Field(default_factory=dict)  # optional arbitrary passthrough
 
 
@@ -41,4 +43,29 @@ class ModelConfigYAML(BaseModel):
         dupes = {n for n in set(names) if names.count(n) > 1}
         if dupes:
             raise ValueError(f"duplicate provider names: {sorted(dupes)}")
+
+        name_set = set(names)
+        # fallback_to must point at an existing provider, never itself.
+        for p in self.model_providers:
+            if p.fallback_to is not None:
+                if p.fallback_to == p.name:
+                    raise ValueError(f"provider '{p.name}' cannot fall back to itself")
+                if p.fallback_to not in name_set:
+                    raise ValueError(
+                        f"provider '{p.name}' fallback_to '{p.fallback_to}' "
+                        f"is not in model_providers"
+                    )
+
+        # Reject fallback_to cycles (a → b → a).
+        graph = {p.name: p.fallback_to for p in self.model_providers}
+        for start in graph:
+            seen: set[str] = set()
+            cur = graph[start]
+            while cur is not None:
+                if cur == start or cur in seen:
+                    raise ValueError(
+                        f"fallback_to cycle detected involving '{start}'"
+                    )
+                seen.add(cur)
+                cur = graph.get(cur)
         return self

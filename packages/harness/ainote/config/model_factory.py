@@ -21,6 +21,7 @@ from langchain_core.language_models import BaseChatModel
 from langchain_deepseek import ChatDeepSeek
 from langchain_openai import ChatOpenAI
 
+from ainote.config.model_failover import FailoverChatModel
 from ainote.config.model_provider import ModelConfigYAML, ModelProvider
 
 logger = logging.getLogger(__name__)
@@ -51,6 +52,8 @@ def _build_openai(cfg: ModelProvider, *, api_key: str, temperature: float) -> Ch
         kwargs["base_url"] = cfg.base_url
     if cfg.max_tokens is not None:
         kwargs["max_tokens"] = cfg.max_tokens
+    if cfg.max_retries is not None:
+        kwargs["max_retries"] = cfg.max_retries
     if extra := _thinking_extra_body(cfg):
         kwargs["extra_body"] = extra
     kwargs.update(cfg.model_kwargs)
@@ -67,6 +70,8 @@ def _build_deepseek(cfg: ModelProvider, *, api_key: str, temperature: float) -> 
         kwargs["api_base"] = cfg.base_url   # ChatDeepSeek uses api_base, NOT base_url
     if cfg.max_tokens is not None:
         kwargs["max_tokens"] = cfg.max_tokens
+    if cfg.max_retries is not None:
+        kwargs["max_retries"] = cfg.max_retries
     if extra := _thinking_extra_body(cfg):
         kwargs["extra_body"] = extra
     kwargs.update(cfg.model_kwargs)
@@ -170,6 +175,38 @@ def _resolve_api_key(cfg: ModelProvider) -> str:
 # ── Public entry point ─────────────────────────────────────────────────
 
 
+def _build_single(provider_cfg: ModelProvider, temperature: float | None) -> BaseChatModel:
+    """Build one raw model for a provider config (no failover)."""
+    builder = PROVIDER_REGISTRY.get(provider_cfg.provider)
+    if builder is None:
+        raise ValueError(
+            f"provider '{provider_cfg.provider}' is not registered "
+            f"(known: {sorted(PROVIDER_REGISTRY)})"
+        )
+    api_key = _resolve_api_key(provider_cfg)
+    temp = temperature if temperature is not None else provider_cfg.temperature
+    return builder(provider_cfg, api_key=api_key, temperature=temp)
+
+
+def _build_failover_chain(
+    cfg: ModelConfigYAML,
+    name: str | None,
+    temperature: float | None,
+) -> list[BaseChatModel]:
+    """Build the model chain by following ``fallback_to`` links (cycle-safe)."""
+    seen: set[str] = set()
+    chain: list[BaseChatModel] = []
+    target = name or cfg.active_model
+    while target is not None and target not in seen:
+        seen.add(target)
+        provider_cfg = next((p for p in cfg.model_providers if p.name == target), None)
+        if provider_cfg is None:
+            raise ValueError(f"unknown model provider name '{target}'")
+        chain.append(_build_single(provider_cfg, temperature))
+        target = provider_cfg.fallback_to
+    return chain
+
+
 def create_model(
     name: str | None = None,
     *,
@@ -184,12 +221,21 @@ def create_model(
     provider_cfg = next((p for p in cfg.model_providers if p.name == target), None)
     if provider_cfg is None:
         raise ValueError(f"unknown model provider name '{target}'")
-    builder = PROVIDER_REGISTRY.get(provider_cfg.provider)
-    if builder is None:
-        raise ValueError(
-            f"provider '{provider_cfg.provider}' is not registered "
-            f"(known: {sorted(PROVIDER_REGISTRY)})"
-        )
-    api_key = _resolve_api_key(provider_cfg)
-    temp = temperature if temperature is not None else provider_cfg.temperature
-    return builder(provider_cfg, api_key=api_key, temperature=temp)
+    return _build_single(provider_cfg, temperature)
+
+
+def create_model_with_failover(
+    name: str | None = None,
+    *,
+    temperature: float | None = None,
+) -> BaseChatModel:
+    """Build the named provider plus its ``fallback_to`` chain.
+
+    Returns a ``FailoverChatModel`` when a fallback is configured; otherwise
+    the raw single model (identical to ``create_model``).
+    """
+    cfg = get_model_config_yaml()
+    chain = _build_failover_chain(cfg, name, temperature)
+    if len(chain) == 1:
+        return chain[0]
+    return FailoverChatModel(models=chain)

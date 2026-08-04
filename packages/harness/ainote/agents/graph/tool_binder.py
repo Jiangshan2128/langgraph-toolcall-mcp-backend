@@ -11,7 +11,7 @@ import logging
 from langchain_core.language_models import BaseChatModel
 from langchain_core.tools import BaseTool
 
-from ainote.config.model_factory import create_model
+from ainote.agents.models import get_model
 from ainote.tools import ALL_TOOLS
 
 logger = logging.getLogger(__name__)
@@ -47,7 +47,7 @@ def get_model_with_tools(
       3. Promoted tool names (from ``state["promoted_tools"]``) have their
          full schemas bound so the LLM can call them.
     """
-    model = create_model("deepseek-reasoning")
+    model = get_model("deepseek-reasoning")
     tool_map = {t.name: t for t in ALL_TOOLS}
 
     # 1. Core tools are always bound.
