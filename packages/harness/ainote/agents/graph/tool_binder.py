@@ -8,11 +8,10 @@ graph state (``promoted_tools``).
 
 import logging
 
-from langchain_core.messages import BaseMessage
+from langchain_core.language_models import BaseChatModel
 from langchain_core.tools import BaseTool
-from langchain_openai import ChatOpenAI
 
-from ainote.agents.models import get_model
+from ainote.config.model_factory import create_model
 from ainote.tools import ALL_TOOLS
 
 logger = logging.getLogger(__name__)
@@ -33,8 +32,14 @@ _CORE_TOOL_NAMES: frozenset[str] = frozenset({
 def get_model_with_tools(
     *,
     promoted_names: list[str] | None = None,
-) -> ChatOpenAI:
+) -> BaseChatModel:
     """Return a model with the appropriate tools bound.
+
+    Uses the ``deepseek-reasoning`` provider (thinking enabled) for the main
+    chat path, whose bind_tools uses the default tool_choice=auto. TrustCall
+    paths keep ``get_model()`` (the thinking-disabled ``deepseek-chat``)
+    because TrustCall forces tool_choice="required" internally, which DeepSeek
+    reasoning rejects while thinking is on.
 
     Binding strategy:
       1. Core tools are always bound.
@@ -42,7 +47,7 @@ def get_model_with_tools(
       3. Promoted tool names (from ``state["promoted_tools"]``) have their
          full schemas bound so the LLM can call them.
     """
-    model = get_model()
+    model = create_model("deepseek-reasoning")
     tool_map = {t.name: t for t in ALL_TOOLS}
 
     # 1. Core tools are always bound.

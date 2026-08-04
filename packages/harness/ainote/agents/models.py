@@ -1,9 +1,9 @@
 from dataclasses import dataclass
 from functools import lru_cache
 
-from langchain_openai import ChatOpenAI
+from langchain_core.language_models import BaseChatModel
 
-from ainote.config.settings import settings
+from ainote.config.model_factory import create_model
 
 
 @dataclass
@@ -14,19 +14,10 @@ class Configuration:
 
 
 @lru_cache
-def get_model(temperature: float = 0.0) -> ChatOpenAI:
-    """Return a configured chat model. Do not hard-code at module level."""
-    # DeepSeek thinking mode (V4 Flash / R1) does not support
-    # tool_choice="required" which TrustCall sends internally.
-    # Disable thinking so TrustCall's PatchDoc / Task extraction works.
-    extra_body = None
-    if "deepseek" in settings.GLM_MODEL.lower():
-        extra_body = {"thinking": {"type": "disabled"}}
+def get_model(temperature: float = 0.0) -> BaseChatModel:
+    """Return the active chat model selected by config.yaml.
 
-    return ChatOpenAI(
-        model=settings.GLM_MODEL,
-        api_key=settings.GLM_API_KEY,
-        base_url=settings.GLM_BASE_URL,
-        temperature=temperature,
-        model_kwargs={"extra_body": extra_body} if extra_body else None,
-    )
+    Signature preserved for the call sites (tool_binder, TrustCall extractors,
+    update_instructions) — all call with no arguments.
+    """
+    return create_model(temperature=temperature)
