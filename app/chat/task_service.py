@@ -3,6 +3,7 @@ import logging
 from langchain_core.messages import HumanMessage
 
 from ainote.agents.graph import builder
+from ainote.agents.memory import delete_all_tasks as _delete_all_tasks
 from ainote.agents.memory import delete_task as _delete_task
 from ainote.agents.memory import get_tasks
 from ainote.agents.memory import update_task as _update_task
@@ -64,6 +65,26 @@ def delete_task(
         f"[SYSTEM NOTIFICATION] Task '{title}' (key={key}) was DELETED via the "
         f"REST API by the user. It no longer exists in the task list. Do NOT "
         f"re-add it by yourself unless the user explicitly requests it.",
+    )
+    return get_tasks(builder.store, user_id)
+
+
+def delete_all_tasks(
+    user_id: str = "default", session_id: str | None = None
+) -> list[dict]:
+    """Delete every task for a user and return the (now empty) task list.
+
+    ``session_id`` 可选：传入时会在对应会话线程注入"全部删除"通知，防止 LLM
+    下次基于旧历史误判并重加已删除任务。
+    """
+    count = _delete_all_tasks(builder.store, user_id)
+
+    _notify_thread(
+        user_id,
+        session_id,
+        f"[SYSTEM NOTIFICATION] ALL tasks ({count} total) were DELETED via the "
+        f"REST API by the user. The task list is now empty. Do NOT re-add any "
+        f"previously mentioned tasks unless the user explicitly requests it.",
     )
     return get_tasks(builder.store, user_id)
 

@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException
 
 from app.common.dependencies import CurrentUserIdDep, SessionIdQueryDep
 from app.chat.schemas import TaskListResponse, TaskUpdateRequest
-from app.chat.task_service import delete_task, list_tasks, update_task
+from app.chat.task_service import delete_all_tasks, delete_task, list_tasks, update_task
 
 
 taskRouter = APIRouter(prefix="/tasks", tags=["tasks"])
@@ -13,6 +13,23 @@ async def list_tasks_endpoint(user_id: CurrentUserIdDep) -> TaskListResponse:
     """获取当前用户的全部任务列表。"""
     try:
         tasks = list_tasks(user_id=user_id)
+        return {"ok": True, "tasks": tasks}
+    except Exception as e:
+        _as_http_error(e)
+
+
+@taskRouter.delete("", response_model=TaskListResponse)
+async def delete_all_tasks_endpoint(
+    user_id: CurrentUserIdDep,
+    session_id: SessionIdQueryDep = None,
+) -> TaskListResponse:
+    """删除当前用户的全部任务，返回空任务列表。
+
+    ``session_id`` 可选：传入时会在对应会话线程注入"全部删除"通知，防止 LLM
+    下次基于旧历史误判并重加已删除任务。
+    """
+    try:
+        tasks = delete_all_tasks(user_id=user_id, session_id=session_id)
         return {"ok": True, "tasks": tasks}
     except Exception as e:
         _as_http_error(e)

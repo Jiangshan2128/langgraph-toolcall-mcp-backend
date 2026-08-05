@@ -43,6 +43,15 @@ def delete_task(store: BaseStore, user_id: str, key: str):
     store.delete(_namespace(TASK_NS, user_id), key)
 
 
+def delete_all_tasks(store: BaseStore, user_id: str) -> int:
+    """Delete every task memory for a user; return the number deleted."""
+    namespace = _namespace(TASK_NS, user_id)
+    keys = [item.key for item in store.search(namespace)]
+    for key in keys:
+        store.delete(namespace, key)
+    return len(keys)
+
+
 def update_task(store: BaseStore, user_id: str, key: str, updates: dict):
     """Update a task by key, merging updates into the existing value."""
     namespace = _namespace(TASK_NS, user_id)
