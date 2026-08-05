@@ -106,6 +106,23 @@ def test_store_lazy_expiry(monkeypatch):
     assert read.status == JobStatus.timeout
 
 
+def test_find_active_job_ignores_expired(monkeypatch):
+    """An expired active job (orphaned) does not block a new submit."""
+    store = InMemoryStore()
+    monkeypatch.setattr(builder, "store", store)
+    stale = job_store.create_job(
+        store, Job(user_id="u1", session_id="s1", status=JobStatus.running),
+        expires_in=1000,
+    )
+    past = (datetime.now(timezone.utc) - timedelta(seconds=1)).isoformat()
+    store.put(("job", "u1"), stale.id, {**stale.model_dump(mode="json"), "expires_at": past})
+
+    assert job_store.find_active_job(store, "u1", "s1") is None
+    # The stale job was lazily settled to timeout.
+    settled = job_store.get_job(store, "u1", stale.id)
+    assert settled.status == JobStatus.timeout
+
+
 def test_find_active_job():
     store = InMemoryStore()
     active = job_store.create_job(
@@ -199,16 +216,22 @@ def test_resume_non_interrupt_raises(monkeypatch):
         runner.resume("u1", job.id, {"approved": True})
 
 
-def test_resume_orphaned_job_raises(monkeypatch):
-    """An interrupt job whose runner died (restart) has no registry event."""
+def test_resume_orphaned_job_settles_as_timeout(monkeypatch):
+    """An interrupt job whose runner died (restart) has no registry event.
+
+    It can never be resumed, but it must not keep holding the per-session
+    active lock — resume() settles it as `timeout` so the next submit for
+    this session can proceed.
+    """
     store = InMemoryStore()
     monkeypatch.setattr(builder, "store", store)
     job = job_store.create_job(
         store, Job(user_id="u1", session_id="s1", status=JobStatus.interrupt),
         expires_in=1000,
     )
-    with pytest.raises(runner.JobNotResumable):
-        runner.resume("u1", job.id, {"approved": True})
+    settled = runner.resume("u1", job.id, {"approved": True})
+    assert settled.status == JobStatus.timeout
+    assert job_store.find_active_job(store, "u1", "s1") is None
 
 
 def test_get_missing_job_raises(monkeypatch):

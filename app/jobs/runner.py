@@ -142,10 +142,16 @@ def resume(user_id: str, job_id: str, decision: dict) -> Job:
 
     event = _resume_events.get(job_id)
     if event is None:
-        raise JobNotResumable(
-            f"Job '{job_id}' is orphaned (its runner died with the server). "
-            f"Please resubmit the message."
-        )
+        # Orphaned job: its runner died with the server (CloudBase scale-to-0
+        # / redeploy). It can never be resumed, but it must not keep holding
+        # the per-session active lock — otherwise the next submit for this
+        # session 409s forever. Settle it as `timeout` and release the lock.
+        logger.warning("job %s orphaned (no runner event); settling as timeout", job_id)
+        job.status = JobStatus.timeout
+        job.interrupt = None
+        job.error = "Runner died while awaiting approval; job abandoned."
+        job_store.save_job(store, job)
+        return job
 
     _resume_decisions[job_id] = decision
     job.status = JobStatus.running

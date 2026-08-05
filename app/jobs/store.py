@@ -93,9 +93,19 @@ def find_active_job(store: BaseStore, user_id: str, session_id: str) -> Job | No
 
     Guards against two concurrent runs sharing one LangGraph thread_id
     (the checkpointer serializes by thread_id and would otherwise race).
+
+    An active-status job that has passed ``expires_at`` is presumed orphaned
+    (its runner died with the instance) — it does NOT count as active, so the
+    per-session lock is released and the next submit can proceed.
     """
     for item in store.search(_namespace(user_id)):
         job = Job.model_validate(item.value)
+        if job.status in ACTIVE_STATUSES and _is_expired(job):
+            # Lazily settle the stale job to timeout so it can't block a submit.
+            job.status = JobStatus.timeout
+            job.updated_at = datetime.now(timezone.utc).isoformat()
+            store.put(_namespace(user_id), job.id, job.model_dump(mode="json"))
+            continue
         if job.session_id == session_id and job.status in ACTIVE_STATUSES:
             return job
     return None
