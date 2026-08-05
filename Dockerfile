@@ -10,7 +10,7 @@
 # 运行：  docker run --rm -p 8000:80 -e GLM_API_KEY=... -e SUPABASE_URL=... ainote-backend
 
 # ── Builder stage: install Python deps via uv ──────────────────────────────
-FROM ghcr.io/astral-sh/uv:0.5-python3.13 AS builder
+FROM ghcr.io/astral-sh/uv:python3.13-bookworm-slim AS builder
 
 ENV UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy
@@ -44,12 +44,13 @@ ENV PYTHONUNBUFFERED=1 \
     PORT=80 \
     PATH="/app/.venv/bin:$PATH"
 
-# Node.js（DingTalk MCP 子进程）+ ffmpeg（Groq 转写切分）
+# Node.js（DingTalk MCP 子进程，用 Debian 自带 nodejs 避免 nodesource 网络风险）
+# + ffmpeg（Groq 转写切分）
 RUN apt-get update && apt-get install -y --no-install-recommends \
         curl \
         ffmpeg \
-    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
-    && apt-get install -y --no-install-recommends nodejs \
+        nodejs \
+        npm \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
