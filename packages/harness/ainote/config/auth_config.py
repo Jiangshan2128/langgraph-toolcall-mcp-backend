@@ -26,6 +26,9 @@ class AuthConfig(BaseSettings):
     """
 
     SUPABASE_URL: str = ""
+    # GoTrue API key (anon/publishable key) — forwarded as the `apikey` header
+    # by the auth proxy so the frontend never needs to call Supabase directly.
+    SUPABASE_ANON_KEY: str = ""
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
