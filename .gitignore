@@ -27,3 +27,6 @@ mcp/
 
 # Test artifacts
 chunks_report.txt
+
+# CloudBase deploy package (generated)
+cloudbase-deploy.zip
