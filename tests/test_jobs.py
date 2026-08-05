@@ -199,10 +199,40 @@ async def test_interrupt_then_resume_then_done(monkeypatch):
 async def test_active_job_conflict_rejects_second_submit(monkeypatch):
     store = InMemoryStore()
     monkeypatch.setattr(builder, "store", store)
-    job_store.create_job(store, Job(user_id="u1", session_id="s1"), expires_in=1000)
+    active = job_store.create_job(
+        store, Job(user_id="u1", session_id="s1"), expires_in=1000
+    )
+    runner._live_jobs.add(active.id)  # simulate a live runner task in this process
 
-    with pytest.raises(runner.ActiveJobConflict):
+    with pytest.raises(runner.ActiveJobConflict) as exc_info:
         runner.submit(user_id="u1", session_id="s1", message="second")
+    assert exc_info.value.job_id == active.id
+    runner._live_jobs.discard(active.id)
+
+
+async def test_submit_settles_orphaned_active_job(monkeypatch):
+    """An active job whose runner died (restart) must not block a new submit.
+
+    ``submit()`` settles it as ``timeout`` (releasing the per-session lock)
+    and proceeds with the new job — same orphan handling as ``resume()``.
+    """
+    store = InMemoryStore()
+    monkeypatch.setattr(builder, "store", store)
+    monkeypatch.setattr(builder, "graph", _FakeInstantGraph())
+    stale = job_store.create_job(
+        store,
+        Job(user_id="u1", session_id="s1", status=JobStatus.interrupt),
+        expires_in=1000,
+    )
+
+    job = runner.submit(user_id="u1", session_id="s1", message="new")
+
+    assert job.id != stale.id
+    settled = runner.get("u1", stale.id)
+    assert settled.status == JobStatus.timeout
+    # The stale job no longer holds the lock — the new job is the active one.
+    assert job_store.find_active_job(store, "u1", "s1").id == job.id
+    await _wait_for_status(store, "u1", job.id, JobStatus.done)
 
 
 def test_resume_non_interrupt_raises(monkeypatch):
@@ -303,3 +333,15 @@ def test_resume_flow_via_router(client):
 def test_poll_missing_job_returns_404(client):
     resp = client.get("/api/v1/chat/jobs/nope")
     assert resp.status_code == 404
+
+
+def test_create_job_conflict_returns_409_with_job_id(client):
+    """A 409 on submit carries the blocking job's id so clients can self-heal."""
+    first = client.post(
+        "/api/v1/chat/jobs", data={"session_id": "s1", "message": "hi"}
+    ).json()
+    resp = client.post(
+        "/api/v1/chat/jobs", data={"session_id": "s1", "message": "second"}
+    )
+    assert resp.status_code == 409
+    assert resp.headers.get("x-active-job-id") == first["id"]

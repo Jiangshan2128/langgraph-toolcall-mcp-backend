@@ -50,10 +50,18 @@ JOB_EXPIRY_SECONDS = RUN_TIMEOUT_SECONDS + RESUME_TIMEOUT_SECONDS + 60
 _resume_events: dict[str, asyncio.Event] = {}
 # Registry: job_id -> resume decision payload
 _resume_decisions: dict[str, dict] = {}
+# Set of job ids whose runner task is alive in THIS process. After a process
+# restart every persisted "active" job becomes an orphan — nothing is running
+# it — so submit() can settle it instead of 409ing the session forever.
+_live_jobs: set[str] = set()
 
 
 class ActiveJobConflict(RuntimeError):
     """A live job already exists for the same (user, session)."""
+
+    def __init__(self, message: str, job_id: str | None = None):
+        super().__init__(message)
+        self.job_id = job_id
 
 
 class JobNotFound(RuntimeError):
@@ -85,10 +93,26 @@ def submit(
 
     active = job_store.find_active_job(store, user_id, session_id)
     if active is not None:
-        raise ActiveJobConflict(
-            f"An active job ({active.id}) already exists for this session. "
-            f"Poll it or wait for it to finish before sending another message."
+        # If the active job still has a live runner in THIS process, it is a
+        # genuine in-flight conversation for this session — reject the submit
+        # (two concurrent runs would race the LangGraph checkpointer).
+        if active.id in _live_jobs:
+            raise ActiveJobConflict(
+                f"An active job ({active.id}) already exists for this session. "
+                f"Poll it or wait for it to finish before sending another message.",
+                active.id,
+            )
+        # Otherwise the job's runner died (process restart / redeploy) while
+        # the job was still active. It holds the per-session lock but can
+        # never progress — settle it as `timeout` and proceed with the new
+        # job, mirroring the orphan handling in resume().
+        logger.warning(
+            "job %s orphaned (no live runner); settling as timeout", active.id
         )
+        active.status = JobStatus.timeout
+        active.interrupt = None
+        active.error = "Runner died while job was active; job abandoned."
+        job_store.save_job(store, active)
 
     job_store.prune_old_jobs(store, user_id)
 
@@ -99,6 +123,7 @@ def submit(
         has_audio=audio_bytes is not None,
     )
     job_store.create_job(store, job, expires_in=JOB_EXPIRY_SECONDS)
+    _live_jobs.add(job.id)
 
     asyncio.create_task(
         _execute(
@@ -236,6 +261,7 @@ async def _execute(
         logger.exception("job %s failed", job_id)
         await _set_status(store, job, JobStatus.failed, error=str(exc))
     finally:
+        _live_jobs.discard(job_id)
         _resume_events.pop(job_id, None)
         _resume_decisions.pop(job_id, None)
 

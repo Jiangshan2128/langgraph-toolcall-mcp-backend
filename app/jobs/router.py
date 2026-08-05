@@ -55,7 +55,10 @@ async def create_chat_job(
             audio_language=language,
         )
     except runner.ActiveJobConflict as exc:
-        raise HTTPException(status_code=409, detail=str(exc))
+        # Expose the blocking job's id so clients can self-heal: reject it
+        # (releasing the per-session lock) and retry the submit once.
+        headers = {"X-Active-Job-Id": exc.job_id} if exc.job_id else None
+        raise HTTPException(status_code=409, detail=str(exc), headers=headers)
     return job.model_dump(mode="json")
 
 
