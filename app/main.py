@@ -16,6 +16,7 @@ from app.chat.router import chatRouter
 from ainote.config.settings import settings
 from ainote.agents.graph.builder import init_graph, pool
 from app.chat.task_router import taskRouter
+from app.jobs.router import jobRouter
 from app.user.router import userRouter
 
 @asynccontextmanager
@@ -39,6 +40,7 @@ fastApi = FastAPI(
 
 fastApi.include_router(chatRouter, prefix="/api/v1")
 fastApi.include_router(taskRouter, prefix="/api/v1")
+fastApi.include_router(jobRouter, prefix="/api/v1")
 fastApi.include_router(userRouter, prefix="/api/v1")
 
 @fastApi.get("/")
