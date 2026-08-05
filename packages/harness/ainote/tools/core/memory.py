@@ -28,6 +28,7 @@ class Profile(BaseModel):
 
     name: Optional[str] = Field(default=None, description="The user's name")
     gender: Optional[str] = Field(default=None, description="The user's gender")
+    age: Optional[int] = Field(default=None, description="The user's age in years")
     job: Optional[str] = Field(default=None, description="The user's job or profession")
     location: Optional[str] = Field(default=None, description="The user's location")
     description: Optional[str] = Field(
