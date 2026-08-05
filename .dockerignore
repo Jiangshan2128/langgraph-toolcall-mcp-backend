@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+.pytest_cache/
+
+# Virtual env & env secrets — NEVER ship .env or .venv into the image
+.venv/
+.env
+.env.*
+!.env.example
+
+# VCS
+.git/
+.gitignore
+
+# IDE / tool caches
+.vscode/
+.claude/
+.cache/
+
+# Local-only MCP server (lives in a sibling repo, not in this image)
+mcp/
+mcp-server/
+
+# Test / docs artifacts not needed at runtime
+tests/
+chunks_report.txt
+*.png
+前端鉴权接入指南.md

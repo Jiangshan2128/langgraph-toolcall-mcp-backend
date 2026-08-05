@@ -1,4 +1,5 @@
 import logging
+import os
 
 from langchain_core.messages import HumanMessage
 from langgraph.checkpoint.memory import MemorySaver
@@ -170,11 +171,14 @@ async def init_graph():
 
 
 # 绘制并保存 graph 结构图
-try:
-    png_bytes = graph.get_graph(xray=1).draw_mermaid_png()
-    output_path = "graph.png"
-    with open(output_path, "wb") as f:
-        f.write(png_bytes)
-    logger.info("Graph diagram saved to %s", output_path)
-except Exception as e:
-    logger.warning("Failed to draw graph diagram: %s", e)
+# 容器/生产环境跳过：draw_mermaid_png 需要外部渲染，冷启动时会拖慢 5~15s。
+# 本地调试想看结构图时保留（SKIP_GRAPH_PNG 未设置）。
+if os.environ.get("SKIP_GRAPH_PNG") != "1":
+    try:
+        png_bytes = graph.get_graph(xray=1).draw_mermaid_png()
+        output_path = "graph.png"
+        with open(output_path, "wb") as f:
+            f.write(png_bytes)
+        logger.info("Graph diagram saved to %s", output_path)
+    except Exception as e:
+        logger.warning("Failed to draw graph diagram: %s", e)
