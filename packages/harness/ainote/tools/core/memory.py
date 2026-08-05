@@ -27,15 +27,11 @@ class Profile(BaseModel):
     """Profile of the user the agent is chatting with."""
 
     name: Optional[str] = Field(default=None, description="The user's name")
+    gender: Optional[str] = Field(default=None, description="The user's gender")
+    job: Optional[str] = Field(default=None, description="The user's job or profession")
     location: Optional[str] = Field(default=None, description="The user's location")
-    role: Optional[str] = Field(default=None, description="The user's role or job")
-    connections: list[str] = Field(
-        default_factory=list,
-        description="People, teams, or groups the user works with",
-    )
-    preferences: list[str] = Field(
-        default_factory=list,
-        description="Preferences for task planning and communication",
+    description: Optional[str] = Field(
+        default=None, description="Short description of the user"
     )
 
 
@@ -114,7 +110,7 @@ async def update_profile(
     """Update the user's profile memory based on the conversation.
 
     Call this when the user provides personal information such as name,
-    location, role, connections, or preferences.
+    gender, job, location, or a short self-description.
     """
     user_id = _user_id(state)
     namespace = ("profile", user_id)

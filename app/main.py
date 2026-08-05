@@ -16,6 +16,7 @@ from app.chat.router import chatRouter
 from ainote.config.settings import settings
 from ainote.agents.graph.builder import init_graph, pool
 from app.chat.task_router import taskRouter
+from app.user.router import userRouter
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -38,6 +39,7 @@ fastApi = FastAPI(
 
 fastApi.include_router(chatRouter, prefix="/api/v1")
 fastApi.include_router(taskRouter, prefix="/api/v1")
+fastApi.include_router(userRouter, prefix="/api/v1")
 
 @fastApi.get("/")
 async def root():
