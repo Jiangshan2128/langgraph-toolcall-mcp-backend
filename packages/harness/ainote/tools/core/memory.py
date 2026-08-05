@@ -41,6 +41,10 @@ class Task(BaseModel):
 
     title: str = Field(description="The task title")
     description: Optional[str] = Field(default=None, description="Task details")
+    tag: Literal["work", "personal"] = Field(
+        default="personal",
+        description="Task category: work or personal",
+    )
     assignee: Optional[str] = Field(default=None, description="Who should own the task")
     priority: Literal["P0", "P1", "P2"] = Field(
         default="P1", description="P0 = urgent today, P1 = important, P2 = routine"

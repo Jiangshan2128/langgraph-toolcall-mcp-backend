@@ -116,6 +116,7 @@ Use parallel tool calling to handle updates and insertions simultaneously.
 When the user asks to break down a task, mentions sub-tasks, or describes a multi-step plan, you MUST return one or more Task objects using the Task tool. Each sub-task should become its own Task with:
 - title: concise sub-task name
 - description: brief details
+- tag: "work" or "personal" — work if the task is job/company/business related, personal otherwise (default "personal")
 - assignee: who owns it (default to the user if not specified)
 - priority: P0 (urgent today), P1 (important), or P2 (routine)
 - deadline: YYYY-MM-DD or descriptive text if mentioned
