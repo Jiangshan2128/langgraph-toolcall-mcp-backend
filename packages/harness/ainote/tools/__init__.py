@@ -28,3 +28,19 @@ ALL_TOOLS = [
     update_task_priority,
     delete_task_by_title,
 ]
+
+
+def remove_tools_by_name(names: set[str]) -> list:
+    """Remove tools whose name is in ``names`` from ALL_TOOLS (in place).
+
+    ALL_TOOLS is a module-level list shared by ToolNode and tool_binder, so we
+    replace it in place (``ALL_TOOLS[:] = ...``) to keep the object identity —
+    anyone holding a reference to the original list sees the removal.
+
+    Returns the removed tools.
+    """
+    removed, keep = [], []
+    for t in ALL_TOOLS:
+        (removed if t.name in names else keep).append(t)
+    ALL_TOOLS[:] = keep
+    return removed

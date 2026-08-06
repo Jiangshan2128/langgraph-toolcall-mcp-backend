@@ -42,6 +42,16 @@ def register_mcp_tools(tools: list[BaseTool]) -> None:
         MCP_TOOL_NAMES.add(t.name)
 
 
+def unregister_mcp_tools(names: set[str]) -> None:
+    """Remove tool names from the deferred set (e.g. when disabling DingTalk).
+
+    ``build_deferred_tool_setup`` filters deferred tools by ``is_mcp_tool``
+    (= name in ``MCP_TOOL_NAMES``), so names must be removed BEFORE rebuilding
+    the deferred setup, otherwise the unloaded tools stay in the catalog.
+    """
+    MCP_TOOL_NAMES.difference_update(names)
+
+
 def is_mcp_tool(t: BaseTool) -> bool:
     """Check whether a tool is a DingTalk MCP tool by name."""
     return t.name in MCP_TOOL_NAMES

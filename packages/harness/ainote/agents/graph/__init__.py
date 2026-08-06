@@ -5,7 +5,7 @@ including state management, node functions, and graph building.
 
 Import directly from submodules to avoid circular dependencies::
 
-    from ainote.agents.graph.builder import graph, build_graph, init_graph
+    from ainote.agents.graph.builder import graph, build_graph
     from ainote.agents.graph.state import AgentState
     from ainote.agents.graph.nodes import agent_node, hitl_node
 """

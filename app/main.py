@@ -14,17 +14,19 @@ from fastapi import FastAPI
 
 from app.chat.router import chatRouter
 from ainote.config.settings import settings
-from ainote.agents.graph.builder import init_graph, pool
+from ainote.agents.graph.builder import pool
 from app.chat.task_router import taskRouter
 from app.jobs.router import jobRouter
 from app.user.router import userRouter
 from app.auth.router import authRouter
+from app.dingtalk.router import dingtalkRouter
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Load DingTalk MCP tools (if enabled) and rebuild the graph with the full
-    # tool set. Failures are logged inside init_graph and non-fatal.
-    await init_graph()
+    # MCP servers (DingTalk, rag) are NOT loaded at startup — they're loaded
+    # on demand via the toggle endpoints (/api/v1/dingtalk/enable, etc.) to
+    # keep cold start fast. The core graph is already compiled at import time
+    # (builder.graph). Nothing to do here except manage the DB pool.
     yield
     if pool is not None:
         try:
@@ -44,6 +46,7 @@ fastApi.include_router(taskRouter, prefix="/api/v1")
 fastApi.include_router(jobRouter, prefix="/api/v1")
 fastApi.include_router(userRouter, prefix="/api/v1")
 fastApi.include_router(authRouter, prefix="/api/v1")
+fastApi.include_router(dingtalkRouter, prefix="/api/v1")
 
 @fastApi.get("/")
 async def root():

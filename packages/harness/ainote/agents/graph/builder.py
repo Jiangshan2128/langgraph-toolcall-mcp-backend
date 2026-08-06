@@ -9,7 +9,6 @@ from langgraph.store.memory import InMemoryStore
 
 from ainote.agents.models import Configuration
 from ainote.config.settings import settings
-from ainote.agents.debug_utils import print_section
 from ainote.agents.graph.nodes import agent_node, hitl_node
 from ainote.agents.graph.routing import route_after_agent, route_after_tools, route_start
 from ainote.agents.graph.state import AgentState
@@ -118,56 +117,41 @@ def build_graph():
     return b.compile(store=store, checkpointer=checkpointer)
 
 
-# Core graph (built at import with the static tool set). If DingTalk MCP is
-# enabled, `init_graph()` (called from the FastAPI lifespan) extends ALL_TOOLS
-# and reassigns `graph`. Consumers should access `builder.graph` (module attr),
-# not bind the value at import, to see the post-startup instance.
+# Core graph (built at import with the static tool set). MCP servers are NOT
+# loaded at startup — they're added on demand via the toggle endpoints, which
+# call rebuild_deferred_and_graph() and reassign `graph`. Consumers should
+# access `builder.graph` (module attr), not bind the value at import, to see
+# the post-startup instance.
 graph = build_graph()
 
 
-async def init_graph():
-    """Load MCP tools from ``mcp_servers.json`` and rebuild the graph.
+def rebuild_deferred_and_graph() -> "DeferredToolSetup | None":
+    """Rebuild deferred-tool setup and recompile the graph from current ALL_TOOLS.
 
-    Called once during app startup.  Failures are logged and non-fatal: the
-    core graph stays in place and the app continues with its built-in tools.
+    Idempotent: first drops any stale ``tool_search`` from ALL_TOOLS, rebuilds
+    the deferred setup from the remaining MCP tools (via
+    ``build_deferred_tool_setup``), re-appends a fresh ``tool_search`` if any
+    MCP tools remain, refreshes the cached setup, and recompiles ``graph``.
+    Callers must have already mutated ALL_TOOLS / MCP_TOOL_NAMES.
 
-    To add a new MCP server, edit ``mcp_servers.json`` in the project root
-    (see ``mcp_servers.example.json`` for the format).
+    Returns the new ``DeferredToolSetup`` (or None when no deferred setup).
     """
     global graph
-    from ainote.tools.mcp_loader import load_mcp_tools
+    from ainote.tools.tool_search import build_deferred_tool_setup
+    from ainote.agents.graph.deferred_cache import refresh_deferred_setup
 
-    mcp_tools = await load_mcp_tools()
-    print_section(f"MCP Tools {len(mcp_tools)}")
-    if not mcp_tools:
-        return
+    # Drop stale tool_search so the rebuild recomputes it from remaining tools.
+    ALL_TOOLS[:] = [t for t in ALL_TOOLS if t.name != "tool_search"]
 
-    # MCP tools are already registered via register_mcp_tools() inside
-    # load_mcp_tools().  Now merge them into ALL_TOOLS for ToolNode.
-    existing = {t.name for t in ALL_TOOLS}
-    added = 0
-    for t in mcp_tools:
-        if t.name not in existing:
-            ALL_TOOLS.append(t)
-            existing.add(t.name)
-            added += 1
-
-    if added:
-        from ainote.tools.tool_search import build_deferred_tool_setup
-        from ainote.agents.graph.deferred_cache import refresh_deferred_setup
-
-        setup = build_deferred_tool_setup(ALL_TOOLS)
-        if setup.tool_search_tool:
-            # Add tool_search to ALL_TOOLS so ToolNode can execute it
-            ALL_TOOLS.append(setup.tool_search_tool)
-            logger.info("tool_search added to ALL_TOOLS (deferred=%d)", len(setup.deferred_names))
-        refresh_deferred_setup(setup)
-        graph = build_graph()
-        logger.info(
-            "Graph rebuilt with MCP tools (added=%d, total=%d).",
-            added,
-            len(ALL_TOOLS),
-        )
+    setup = build_deferred_tool_setup(ALL_TOOLS)
+    if setup.tool_search_tool:
+        # Add tool_search to ALL_TOOLS so ToolNode can execute it
+        ALL_TOOLS.append(setup.tool_search_tool)
+        logger.info("tool_search added to ALL_TOOLS (deferred=%d)", len(setup.deferred_names))
+    refresh_deferred_setup(setup)
+    graph = build_graph()
+    logger.info("Graph rebuilt (total tools=%d)", len(ALL_TOOLS))
+    return setup
 
 
 # 绘制并保存 graph 结构图

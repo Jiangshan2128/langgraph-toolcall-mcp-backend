@@ -130,8 +130,18 @@ def _build_server_params(
     return params
 
 
-async def load_mcp_tools() -> list[BaseTool]:
-    """Load tools from all enabled MCP servers configured in ``mcp_servers.json``.
+async def load_mcp_tools(
+    include: set[str] | None = None,
+    exclude: set[str] | None = None,
+) -> list[BaseTool]:
+    """Load tools from enabled MCP servers configured in ``mcp_servers.json``.
+
+    Args:
+        include: if given, only load tools from servers whose name is in this
+            set (e.g. ``{"dingtalk"}`` to load just DingTalk on demand).
+        exclude: if given, skip servers whose name is in this set (e.g. the
+            app startup default ``{"dingtalk"}`` to keep cold start fast).
+            Both filters apply on top of each server's ``enabled`` flag.
 
     Returns an empty list when the config file is missing, empty, or all
     servers fail — the caller should proceed with core tools only.
@@ -165,8 +175,16 @@ async def load_mcp_tools() -> list[BaseTool]:
         for name, cfg in servers_config.items()
         if cfg.get("enabled", True)
     }
+    # Apply include/exclude selectors (on top of the enabled flag).
+    if include is not None:
+        enabled = {n: c for n, c in enabled.items() if n in include}
+    if exclude:
+        enabled = {n: c for n, c in enabled.items() if n not in exclude}
     if not enabled:
-        logger.info("All MCP servers are disabled in %s", config_path)
+        logger.info(
+            "No MCP servers selected in %s (include=%s exclude=%s)",
+            config_path, include, exclude,
+        )
         return []
 
     try:
@@ -177,6 +195,7 @@ async def load_mcp_tools() -> list[BaseTool]:
             "Install: pip install langchain-mcp-adapters"
         )
         return []
+    mcp_client_class = globals().get("MultiServerMCPClient", MultiServerMCPClient)
 
     # Build params and connect
     client_params: dict[str, dict[str, Any]] = {}
@@ -191,7 +210,7 @@ async def load_mcp_tools() -> list[BaseTool]:
         return []
 
     try:
-        client = MultiServerMCPClient(client_params, tool_name_prefix=True)
+        client = mcp_client_class(client_params, tool_name_prefix=True)
     except Exception as e:
         logger.error("Failed to create MCP client: %s", e)
         return []
