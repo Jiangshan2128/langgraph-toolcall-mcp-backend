@@ -19,6 +19,8 @@ import httpx
 from fastapi import APIRouter, HTTPException, Request
 
 from ainote.config.auth_config import get_auth_config
+from app.auth.schemas import WeChatLoginRequest
+from app.auth.wechat_service import wechat_login
 
 authRouter = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -44,6 +46,20 @@ def _forward_headers(request: Request, cfg) -> dict[str, str]:
     if authz:
         headers["Authorization"] = authz
     return headers
+
+
+# NOTE: this MUST be registered before the `/{path:path}` catch-all below,
+# otherwise Starlette matches `/wechat-login` to the proxy and returns 404.
+@authRouter.post("/wechat-login")
+async def wechat_login_endpoint(body: WeChatLoginRequest):
+    """WeChat one-tap login.
+
+    Body: ``{"code": "<wx.login() code>"}``. Exchanges the code for an openid,
+    maps it to a deterministic Supabase account, and returns a standard GoTrue
+    session ``{ access_token, refresh_token, user }`` — same shape as email
+    login, so the frontend applies it identically.
+    """
+    return await wechat_login(body.code)
 
 
 @authRouter.post("/{path:path}")
@@ -74,7 +90,12 @@ async def auth_proxy(path: str, request: Request):
     except httpx.RequestError as exc:
         raise HTTPException(status_code=502, detail=f"Auth upstream error: {exc}")
 
-    # Return the GoTrue response verbatim (status + JSON body).
+    # Return the GoTrue response verbatim (status + JSON body, when present).
+    # Some GoTrue errors (e.g. logout with an invalid token → 403) return an
+    # EMPTY body — do not crash parsing it; pass the status through instead.
     if resp.status_code >= 400:
         raise HTTPException(status_code=resp.status_code, detail=resp.text)
-    return resp.json()
+    try:
+        return resp.json()
+    except ValueError:
+        return resp.text

@@ -29,6 +29,16 @@ class AuthConfig(BaseSettings):
     # GoTrue API key (anon/publishable key) — forwarded as the `apikey` header
     # by the auth proxy so the frontend never needs to call Supabase directly.
     SUPABASE_ANON_KEY: str = ""
+    # Supabase service_role key — used ONLY server-side to create email-confirmed
+    # users for WeChat login (admin endpoint). Never exposed to the frontend.
+    SUPABASE_SERVICE_ROLE_KEY: str = ""
+    # WeChat Mini Program credentials — from 微信公众平台 → 开发 → 开发设置.
+    # WECHAT_APPSECRET is server-only; never ship it to the client.
+    WECHAT_APPID: str = ""
+    WECHAT_APPSECRET: str = ""
+    # Optional independent secret used to derive the WeChat pseudo-password.
+    # If set, rotating WECHAT_APPSECRET won't invalidate existing WeChat users.
+    WECHAT_PASSWORD_SECRET: str = ""
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
@@ -42,6 +52,16 @@ class AuthConfig(BaseSettings):
     def enabled(self) -> bool:
         """True when auth is configured (a Supabase URL is set)."""
         return bool(self.jwks_url)
+
+    @property
+    def wechat_enabled(self) -> bool:
+        """True when WeChat login is fully configured (URL + service_role + appid + secret)."""
+        return bool(
+            self.SUPABASE_URL
+            and self.SUPABASE_SERVICE_ROLE_KEY
+            and self.WECHAT_APPID
+            and self.WECHAT_APPSECRET
+        )
 
 
 _auth_config: AuthConfig | None = None
