@@ -9,9 +9,24 @@ store。身份来自 ``Authorization: Bearer <Supabase access_token>``，绝不�
 from fastapi import APIRouter, HTTPException, Request
 
 from app.common.dependencies import CurrentUserIdDep
-from app.user.service import ProfileValidationError, update_user_profile
+from app.user.service import (
+    ProfileValidationError,
+    get_user_profile,
+    update_user_profile,
+)
 
 userRouter = APIRouter(prefix="/user", tags=["user"])
+
+
+@userRouter.get("/profile")
+async def get_profile_endpoint(user_id: CurrentUserIdDep) -> dict:
+    """获取当前用户的档案信息。
+
+    前端登录成功后调用，用返回的 profile 初始化用户界面。未设置档案时
+    返回 ``{"ok": true, "profile": null}``。
+    """
+    profile = get_user_profile(user_id=user_id)
+    return {"ok": True, "profile": profile}
 
 
 @userRouter.put("/profile")

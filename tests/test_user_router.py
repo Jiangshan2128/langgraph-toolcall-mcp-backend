@@ -97,3 +97,37 @@ def test_put_profile_is_per_user(client, store):
     client.put("/api/v1/user/profile", content='{"name": "张三"}')
     assert store.get(("profile", "user-42"), "user_profile") is not None
     assert store.get(("profile", "user-43"), "user_profile") is None
+
+
+# ── GET /profile ────────────────────────────────────────────────────────
+
+
+def test_get_profile_returns_none_when_unset(client):
+    resp = client.get("/api/v1/user/profile")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["ok"] is True
+    assert body["profile"] is None
+
+
+def test_get_profile_returns_stored_profile(client, store):
+    """After PUT, GET returns the same profile."""
+    client.put("/api/v1/user/profile", content='{"name": "张三", "gender": "男"}')
+    resp = client.get("/api/v1/user/profile")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["profile"]["name"] == "张三"
+    assert body["profile"]["gender"] == "男"
+
+
+def test_get_profile_is_per_user(client, store):
+    """GET scopes to the resolved user_id — other users see their own (or None)."""
+    # user-42 writes a profile; user-43 (different dep) has none.
+    client.put("/api/v1/user/profile", content='{"name": "张三"}')
+
+    # Override the dep to a different user for the GET.
+    from app.common.dependencies import get_current_user_id
+
+    client.app.dependency_overrides[get_current_user_id] = lambda: "user-43"
+    resp = client.get("/api/v1/user/profile")
+    assert resp.json()["profile"] is None

@@ -19,7 +19,7 @@ import logging
 from pydantic import ValidationError
 
 from ainote.agents.graph import builder
-from ainote.agents.memory import put_profile
+from ainote.agents.memory import get_profile, put_profile
 from ainote.tools.core.memory import Profile
 
 logger = logging.getLogger(__name__)
@@ -46,3 +46,14 @@ def update_user_profile(user_id: str, raw_json: str) -> dict:
     put_profile(builder.store, user_id, data)
     logger.info("Profile replaced for user=%s", user_id)
     return data
+
+
+def get_user_profile(user_id: str) -> dict | None:
+    """Return the current profile for a user, or ``None`` if not set.
+
+    Reads the same ``("profile", user_id)`` namespace the LLM's
+    ``update_profile`` tool writes, so the REST GET and the agent share one
+    source of truth. The frontend calls this after login to hydrate its
+    profile UI.
+    """
+    return get_profile(builder.store, user_id)
