@@ -154,7 +154,9 @@ async def _call_groq(
     if not text:
         segments = getattr(result, "segments", None) or []
         text = " ".join(getattr(seg, "text", "") or "" for seg in segments)
-    print(f"\n\n{text}\n\n")
+    # DEBUG-only: never log transcript text at INFO/WARNING in production —
+    # user voice content must not leak into container logs.
+    logger.debug("transcribed %d chars", len(text))
     return text.strip()
 
 

@@ -21,6 +21,11 @@ pool = None
 store = None
 checkpointer = None
 
+
+class _FatalStoreError(RuntimeError):
+    """Store is connected but not functional — treat as fatal (data loss risk)."""
+
+
 if settings.DATABASE_URL:
     try:
         from langgraph.store.postgres import PostgresStore
@@ -61,13 +66,20 @@ if settings.DATABASE_URL:
             logger.info("PostgresStore verified — read/write OK.")
         except Exception as e:
             logger.critical("PostgresStore health-check failed: %s", e)
-            raise  # 让服务启动失败，而不是静默回退到内存
+            # Connected but broken store = data-loss risk. Mark fatal so the
+            # outer handler re-raises instead of silently falling back to
+            # in-memory (which would lose ALL persisted data on restart).
+            raise _FatalStoreError(str(e)) from e
 
         logger.info("Using PostgresStore (Supabase) for persistence.")
 
         # checkpointer 暂用内存 — 业务数据 (task/profile/instructions) 走 store，已持久化
         checkpointer = MemorySaver()
         logger.info("Using MemorySaver for checkpoints (conversation state).")
+    except _FatalStoreError:
+        # Store is connected but broken — do NOT silently fall back to memory
+        # (that would lose all persisted data on restart). Fail startup loudly.
+        raise
     except Exception as e:
         logger.warning(
             "Failed to connect to Supabase PostgreSQL: %s. Falling back to in-memory store.", e

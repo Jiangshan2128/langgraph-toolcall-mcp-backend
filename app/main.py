@@ -41,6 +41,23 @@ fastApi = FastAPI(
     lifespan=lifespan,
 )
 
+
+@fastApi.exception_handler(Exception)
+async def _unhandled_exception_handler(request, exc):
+    """Global catch-all: log the real error server-side, return a generic 500.
+
+    Never send ``str(exc)`` to the client — it may leak DB connection strings,
+    API-key fragments, or internal paths. HTTPException (4xx/5xx raised by
+    routers) is handled by FastAPI's built-in handler and bypasses this.
+    """
+    import logging
+
+    logging.getLogger(__name__).exception("Unhandled error on %s", request.url.path)
+    from fastapi.responses import JSONResponse
+
+    return JSONResponse(status_code=500, content={"ok": False, "error": "Internal server error"})
+
+
 fastApi.include_router(chatRouter, prefix="/api/v1")
 fastApi.include_router(taskRouter, prefix="/api/v1")
 fastApi.include_router(jobRouter, prefix="/api/v1")

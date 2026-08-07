@@ -186,8 +186,10 @@ async def chat_llm_stream(
             return
 
     except Exception as exc:
+        # Real exception is logged server-side; only a generic message reaches
+        # the client (str(exc) could leak DB connection strings / key fragments).
         logger.exception("chat_stream graph error user=%s", user_id)
-        yield {"event": "error", "data": str(exc)}
+        yield {"event": "error", "data": "请求处理出错，请稍后重试"}
         return
 
     # 流结束后推送完整 task 列表

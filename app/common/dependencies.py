@@ -99,6 +99,11 @@ Use this dependency on every route that needs the user's persisted data::
 # ── Audio upload helper ────────────────────────────────────────────────
 
 
+# Max upload size for audio (20 MB). The transcription pipeline chunks large
+# files, but reading an unbounded body into memory is a DoS vector.
+MAX_AUDIO_BYTES = 20 * 1024 * 1024
+
+
 async def read_audio(file: Any | None) -> tuple[bytes | None, str | None]:
     """Read an optional ``UploadFile`` and return ``(bytes, filename)``.
 
@@ -106,7 +111,24 @@ async def read_audio(file: Any | None) -> tuple[bytes | None, str | None]:
     top of each handler::
 
         audio_bytes, audio_filename = await read_audio(audio)
+
+    Enforces a size cap to prevent memory exhaustion from huge uploads.
     """
     if file is None:
         return None, None
-    return await file.read(), file.filename
+
+    # Pre-check Content-Length when the framework knows it (fast reject).
+    declared = getattr(file, "size", None)
+    if declared is not None and declared > MAX_AUDIO_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"Audio file too large (max {MAX_AUDIO_BYTES // (1024 * 1024)} MB)",
+        )
+
+    data = await file.read()
+    if len(data) > MAX_AUDIO_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"Audio file too large (max {MAX_AUDIO_BYTES // (1024 * 1024)} MB)",
+        )
+    return data, file.filename
