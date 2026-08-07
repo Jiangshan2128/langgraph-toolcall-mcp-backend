@@ -26,6 +26,7 @@ _CORE_TOOL_NAMES: frozenset[str] = frozenset({
     "update_task_priority",
     "delete_task_by_title",
     "web_search",
+    "get_current_time",
 })
 
 

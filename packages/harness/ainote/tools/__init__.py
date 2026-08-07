@@ -6,6 +6,7 @@ from ainote.tools.core.tasks import (
     mark_task_done,
     update_task_priority,
 )
+from ainote.tools.core.time import get_current_time
 
 __all__ = [
     "update_profile",
@@ -16,6 +17,7 @@ __all__ = [
     "mark_task_done",
     "update_task_priority",
     "delete_task_by_title",
+    "get_current_time",
 ]
 
 ALL_TOOLS = [
@@ -27,6 +29,7 @@ ALL_TOOLS = [
     mark_task_done,
     update_task_priority,
     delete_task_by_title,
+    get_current_time,
 ]
 
 
