@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 
@@ -9,6 +10,7 @@ from ainote.agents.graph import builder
 from ainote.agents.graph.state import AgentState
 from ainote.agents.memory import get_tasks
 from app.chat.thread import resolve_thread_id
+from app.common.content_safety import filter_risky_reply
 
 logger = logging.getLogger(__name__)
 
@@ -92,7 +94,10 @@ async def chat_llm(
             "HITL interrupt returned user=%s type=%s",
             user_id, interrupt_data.get("type"),
         )
-    return _build_chat_response(result.value, user_id, interrupt_data)
+    response = _build_chat_response(result.value, user_id, interrupt_data)
+    # AI 输出内容安全:命中风险 → 替换为安全占位文案。to_thread 避免阻塞事件循环。
+    response["reply"] = await asyncio.to_thread(filter_risky_reply, response["reply"])
+    return response
 
 
 # ── Streaming (astream_events v3) ─────────────────────────────────────
