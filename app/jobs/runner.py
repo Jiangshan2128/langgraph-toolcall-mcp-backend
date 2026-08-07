@@ -24,6 +24,8 @@ from __future__ import annotations
 import asyncio
 import logging
 
+from fastapi import HTTPException
+
 from langchain_core.messages import HumanMessage
 from langgraph.types import Command
 
@@ -32,6 +34,7 @@ from ainote.agents.memory import get_tasks
 from ainote.agents.models import Configuration
 from app.chat.service import _last_ai_content
 from app.chat.thread import resolve_thread_id
+from app.common.content_safety import check_text_safety, filter_risky_reply
 from app.jobs import store as job_store
 from app.jobs.models import Job, JobStatus
 
@@ -90,6 +93,15 @@ def submit(
     thread_id would race the checkpointer.
     """
     store = builder.store
+
+    # 内容安全:对用户文本做微信 msgSecCheck,命中风险内容直接拒绝
+    # (HTTPException → 路由层 400),不进入 LLM 流程。
+    if message and not check_text_safety(message):
+        logger.warning("rejected risky message user=%s len=%d", user_id, len(message))
+        raise HTTPException(
+            status_code=400,
+            detail="内容包含违规信息，请修改后再发送",
+        )
 
     active = job_store.find_active_job(store, user_id, session_id)
     if active is not None:
@@ -242,12 +254,14 @@ async def _execute(
                 command = Command(resume=decision)
                 continue
 
-            await _set_status(
-                store,
-                job,
-                JobStatus.done,
-                result=_build_result(result.value, user_id),
+            # AI 输出内容安全:命中风险 → 替换为安全占位文案,不外泄原始违规内容。
+            # to_thread 避免同步网络调用阻塞事件循环(与其他并发 job 隔离)。
+            result = _build_result(result.value, user_id)
+            result["reply"] = await asyncio.to_thread(
+                filter_risky_reply, result["reply"]
             )
+
+            await _set_status(store, job, JobStatus.done, result=result)
             logger.info("job done id=%s user=%s", job_id, user_id)
             return
 
