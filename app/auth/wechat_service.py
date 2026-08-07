@@ -183,6 +183,35 @@ async def _gotrue_admin_create(
     return resp.json()
 
 
+async def _gotrue_admin_delete(cfg: AuthConfig, user_id: str) -> None:
+    """Delete a GoTrue user via the admin API (service_role).
+
+    ``DELETE /auth/v1/admin/users/{id}`` — ``user_id`` is the ``sub`` claim of
+    the access token, which equals the Supabase user UUID. ``404`` (already
+    gone) and missing service_role are treated as success so account deletion
+    is idempotent and works in dev mode.
+    """
+    if not cfg.SUPABASE_SERVICE_ROLE_KEY:
+        logger.info("No service_role key configured — skipping GoTrue user deletion for %s", user_id)
+        return
+    url = f"{cfg.SUPABASE_URL.strip().rstrip('/')}/auth/v1/admin/users/{user_id}"
+    headers = {
+        "apikey": cfg.SUPABASE_SERVICE_ROLE_KEY,
+        "Authorization": f"Bearer {cfg.SUPABASE_SERVICE_ROLE_KEY}",
+    }
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            resp = await client.delete(url, headers=headers)
+    except httpx.RequestError as exc:
+        logger.warning("GoTrue admin delete unreachable: %s", exc)
+        raise HTTPException(status_code=502, detail="Auth upstream unreachable")
+
+    if resp.status_code in (200, 204, 404):
+        return
+    logger.warning("GoTrue admin delete failed: %s %s", resp.status_code, resp.text[:200])
+    raise HTTPException(status_code=502, detail="Auth upstream error")
+
+
 # ── Orchestration ─────────────────────────────────────────────────────
 
 

@@ -76,3 +76,21 @@ def put_instructions(store: BaseStore, user_id: str, data: dict):
         "user_instructions",
         data,
     )
+
+
+def delete_all_user_data(store: BaseStore, user_id: str) -> int:
+    """Delete every memory namespace for a user (profile, tasks, instructions).
+
+    Used by account deletion (DELETE /user/account). Returns the number of
+    store items removed. Namespaces are ``(<prefix>, user_id)`` — see
+    ``_namespace``. ``search`` is prefix-matched, so this clears all keys the
+    user owns across the three memory areas.
+    """
+    deleted = 0
+    for prefix in (PROFILE_NS, TASK_NS, INSTRUCTIONS_NS):
+        namespace = _namespace(prefix, user_id)
+        keys = [item.key for item in store.search(namespace)]
+        for key in keys:
+            store.delete(namespace, key)
+        deleted += len(keys)
+    return deleted
