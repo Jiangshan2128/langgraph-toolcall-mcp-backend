@@ -109,3 +109,58 @@ async def test_disabled_server_is_skipped_even_if_included(fake_config, monkeypa
     tools = await mcp_loader.load_mcp_tools(include={"dingtalk"})
 
     assert tools == []
+
+
+@pytest.mark.asyncio
+async def test_env_overrides_applied_last(fake_config, monkeypatch):
+    """Per-user env overrides win over the config env block."""
+    config = {
+        "mcpServers": {
+            "dingtalk": {
+                "enabled": True,
+                "type": "stdio",
+                "command": "npx",
+                "args": ["dingtalk-mcp"],
+                "env": {"DINGTALK_Client_ID": "from-config"},
+            }
+        }
+    }
+    fake_config.write_text(json.dumps(config), encoding="utf-8")
+
+    recorded: dict = {}
+
+    class _RecordingClient(_FakeClient):
+        def __init__(self, client_params, tool_name_prefix=True):
+            super().__init__(client_params, tool_name_prefix)
+            recorded["params"] = client_params
+
+    _patch_client(monkeypatch, _RecordingClient)
+
+    await mcp_loader.load_mcp_tools(
+        include={"dingtalk"},
+        env_overrides={
+            "dingtalk": {
+                "DINGTALK_Client_ID": "per-user",  # must override from-config
+                "ROBOT_ACCESS_TOKEN": "tok",       # new key added
+            }
+        },
+        register=False,
+    )
+
+    env = recorded["params"]["dingtalk"]["env"]
+    assert env["DINGTALK_Client_ID"] == "per-user"
+    assert env["ROBOT_ACCESS_TOKEN"] == "tok"
+
+
+@pytest.mark.asyncio
+async def test_register_false_skips_global_registration(fake_config, monkeypatch):
+    """register=False must not touch the global MCP_TOOL_NAMES."""
+    from ainote.tools.tool_search import MCP_TOOL_NAMES
+
+    MCP_TOOL_NAMES.clear()
+    _patch_client(monkeypatch)
+
+    tools = await mcp_loader.load_mcp_tools(include={"dingtalk"}, register=False)
+
+    assert tools
+    assert not any(name in MCP_TOOL_NAMES for name in {t.name for t in tools})

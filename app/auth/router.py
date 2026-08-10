@@ -15,11 +15,15 @@ from the ``Authorization`` header on business endpoints (verified against
 Supabase JWKS), never from a client-supplied user_id.
 """
 
+import logging
+
 import httpx
 from fastapi import APIRouter, HTTPException, Request
 
 from ainote.config.auth_config import get_auth_config
 from app.auth.schemas import WeChatLoginRequest
+
+logger = logging.getLogger(__name__)
 from app.auth.wechat_service import wechat_login
 
 authRouter = APIRouter(prefix="/auth", tags=["auth"])
@@ -88,13 +92,19 @@ async def auth_proxy(path: str, request: Request):
                 url, content=body, headers=_forward_headers(request, cfg)
             )
     except httpx.RequestError as exc:
-        raise HTTPException(status_code=502, detail=f"Auth upstream error: {exc}")
+        # Log the real cause; send only a generic message (exc could include
+        # URLs / internal details).
+        logger.warning("Auth upstream unreachable: %s", exc)
+        raise HTTPException(status_code=502, detail="Auth service temporarily unavailable")
 
     # Return the GoTrue response verbatim (status + JSON body, when present).
     # Some GoTrue errors (e.g. logout with an invalid token → 403) return an
     # EMPTY body — do not crash parsing it; pass the status through instead.
     if resp.status_code >= 400:
-        raise HTTPException(status_code=resp.status_code, detail=resp.text)
+        # Log the real upstream error; do NOT forward its raw text to the
+        # client (may contain internal Supabase details).
+        logger.warning("GoTrue error %s: %s", resp.status_code, resp.text[:200])
+        raise HTTPException(status_code=resp.status_code, detail="Auth request failed")
     try:
         return resp.json()
     except ValueError:

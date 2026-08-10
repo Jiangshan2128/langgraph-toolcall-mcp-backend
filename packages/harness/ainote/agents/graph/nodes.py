@@ -13,10 +13,6 @@ from ainote.agents.debug_utils import (
     print_proposed_tasks,
     print_approval_result,
 )
-from ainote.agents.graph.deferred_cache import (
-    get_deferred_setup_cached,
-    refresh_deferred_setup,
-)
 from ainote.agents.graph.middleware import (
     ErrorHandlingMiddleware,
     MemoryLoadMiddleware,
@@ -83,7 +79,19 @@ async def agent_node(
     concerns. Each middleware handles one aspect of the request lifecycle:
     error handling, memory loading, system prompt construction, and tool
     binding.
+
+    Before the pipeline runs, per-user DingTalk tools are ensured (idempotent):
+    the first turn after a restart lazily loads the user's enabled DingTalk MCP
+    tools from the store. Ordering is guaranteed: ensure → SystemPrompt reads
+    the per-user deferred names → ToolBinding binds the per-user tools → LLM →
+    ScopedToolNode executes against the cached per-user ToolNode.
     """
+    user_id = state.get("user_id") or runtime.context.user_id
+    # Lazy import: builder → nodes → dingtalk_runtime → builder would be a
+    # module-load cycle; dingtalk_runtime pulls in builder at import time.
+    from ainote.agents.graph.dingtalk_runtime import ensure_user_tools
+
+    await ensure_user_tools(user_id)
     return await _agent_pipeline.run(state, runtime)
 
 

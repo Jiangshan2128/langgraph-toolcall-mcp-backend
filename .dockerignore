@@ -31,3 +31,7 @@ tests/
 chunks_report.txt
 *.png
 前端鉴权接入指南.md
+# 中文文件名排除:非 ASCII 文件名的文件不要进构建上下文,否则云端
+# docker build 按系统代码页解包时会把中文名当非法 UTF-8,报
+# "failed to unmarshal the received message: string field contains invalid UTF-8"。
+项目工作流程说明.md

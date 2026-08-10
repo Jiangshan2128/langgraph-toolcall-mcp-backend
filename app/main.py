@@ -72,5 +72,26 @@ async def root():
 
 @fastApi.get("/health")
 async def health():
+    """Liveness probe. Verifies the store is actually usable (not just that a
+    pool object exists) so CloudBase's health check reflects real availability.
+    """
+    from ainote.agents.graph import builder
+
+    store = builder.store
+    db_ok = False
+    if store is not None:
+        try:
+            ns = ("_health",)
+            store.put(ns, "ping", {"ok": True})
+            db_ok = store.get(ns, "ping") is not None
+            store.delete(ns, "ping")
+        except Exception:
+            db_ok = False
+
     db_backend = "postgresql" if pool is not None and not pool.closed else "memory"
-    return {"status": "ok", "version": settings.APP_VERSION, "database": db_backend}
+    return {
+        "status": "ok" if db_ok else "degraded",
+        "version": settings.APP_VERSION,
+        "database": db_backend,
+        "database_ok": db_ok,
+    }

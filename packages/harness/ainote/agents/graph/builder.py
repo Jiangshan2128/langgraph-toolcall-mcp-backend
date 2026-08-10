@@ -4,13 +4,13 @@ import os
 from langchain_core.messages import HumanMessage
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import START, END, StateGraph
-from langgraph.prebuilt import ToolNode
 from langgraph.store.memory import InMemoryStore
 
 from ainote.agents.models import Configuration
 from ainote.config.settings import settings
 from ainote.agents.graph.nodes import agent_node, hitl_node
 from ainote.agents.graph.routing import route_after_agent, route_after_tools, route_start
+from ainote.agents.graph.scoped_tool_node import ScopedToolNode
 from ainote.agents.graph.state import AgentState
 from ainote.tools import ALL_TOOLS
 from ainote.transcription.graph import transcription_subgraph
@@ -106,7 +106,9 @@ def build_graph():
     b = StateGraph(AgentState, context_schema=Configuration)
     b.add_node("transcription", transcription_subgraph)
     b.add_node("agent", agent_node)
-    b.add_node("tools", ToolNode(ALL_TOOLS))
+    # Per-user-scoped ToolNode: holds ONLY the shared core tools; DingTalk MCP
+    # tools are resolved per user at invocation (see scoped_tool_node.py).
+    b.add_node("tools", ScopedToolNode(ALL_TOOLS))
     b.add_node("hitl_node", hitl_node)
 
     # Conditional start routing: transcription if audio present, else directly to agent
@@ -138,18 +140,17 @@ graph = build_graph()
 
 
 def rebuild_deferred_and_graph() -> "DeferredToolSetup | None":
-    """Rebuild deferred-tool setup and recompile the graph from current ALL_TOOLS.
+    """DEPRECATED — no longer used by the DingTalk toggle.
 
-    Idempotent: first drops any stale ``tool_search`` from ALL_TOOLS, rebuilds
-    the deferred setup from the remaining MCP tools (via
-    ``build_deferred_tool_setup``), re-appends a fresh ``tool_search`` if any
-    MCP tools remain, refreshes the cached setup, and recompiles ``graph``.
-    Callers must have already mutated ALL_TOOLS / MCP_TOOL_NAMES.
+    DingTalk is now per-user (see ``dingtalk_runtime``) and never mutates
+    ``ALL_TOOLS`` / ``builder.graph``, so the graph is compiled exactly once.
+    Kept only so legacy tests can patch it; delete once those are gone.
 
-    Returns the new ``DeferredToolSetup`` (or None when no deferred setup).
+    Historically: rebuilt the deferred-tool setup and recompiled the graph
+    from the current ALL_TOOLS.
     """
     global graph
-    from ainote.tools.tool_search import build_deferred_tool_setup
+    from ainote.tools.tool_search import DeferredToolSetup, build_deferred_tool_setup
     from ainote.agents.graph.deferred_cache import refresh_deferred_setup
 
     # Drop stale tool_search so the rebuild recomputes it from remaining tools.

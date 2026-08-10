@@ -4,7 +4,7 @@
       "enabled": true,
       "type": "stdio",
       "command": "npx",
-      "args": ["-y", "dingtalk-mcp@latest"],
+      "args": ["-y", "dingtalk-mcp@1.1.21"],
       "env": {
         "DINGTALK_Client_ID": "$DINGTALK_CLIENT_ID",
         "DINGTALK_Client_Secret": "$DINGTALK_CLIENT_SECRET",

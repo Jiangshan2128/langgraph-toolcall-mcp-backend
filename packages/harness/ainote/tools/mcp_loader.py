@@ -88,8 +88,14 @@ def _resolve_env_variables(value: Any) -> Any:
 def _build_server_params(
     server_name: str,
     config: dict[str, Any],
+    *,
+    env_overrides: dict[str, str] | None = None,
 ) -> dict[str, Any]:
-    """Build a single server params dict for ``MultiServerMCPClient``."""
+    """Build a single server params dict for ``MultiServerMCPClient``.
+
+    ``env_overrides`` (key → value) are applied LAST over ``os.environ`` and
+    the config's own ``env`` block — per-user credential overrides win.
+    """
     transport = config.get("type", "stdio")
     params: dict[str, Any] = {"transport": transport}
 
@@ -112,6 +118,8 @@ def _build_server_params(
         env = {**os.environ}
         if config.get("env"):
             env.update(config["env"])
+        if env_overrides:
+            env.update(env_overrides)
         params["env"] = env
     elif transport in ("sse", "http"):
         url = config.get("url")
@@ -133,6 +141,9 @@ def _build_server_params(
 async def load_mcp_tools(
     include: set[str] | None = None,
     exclude: set[str] | None = None,
+    *,
+    env_overrides: dict[str, dict[str, str]] | None = None,
+    register: bool = True,
 ) -> list[BaseTool]:
     """Load tools from enabled MCP servers configured in ``mcp_servers.json``.
 
@@ -142,6 +153,12 @@ async def load_mcp_tools(
         exclude: if given, skip servers whose name is in this set (e.g. the
             app startup default ``{"dingtalk"}`` to keep cold start fast).
             Both filters apply on top of each server's ``enabled`` flag.
+        env_overrides: per-server env overrides (server name → key → value),
+            applied LAST over ``os.environ`` and the config's ``env`` block.
+            Used to inject per-user credentials into the spawned subprocess.
+        register: when False, skip ``register_mcp_tools()`` — the caller
+            manages MCP-tool registration itself (e.g. a per-user load that
+            must NOT pollute the global ``MCP_TOOL_NAMES``).
 
     Returns an empty list when the config file is missing, empty, or all
     servers fail — the caller should proceed with core tools only.
@@ -201,7 +218,10 @@ async def load_mcp_tools(
     client_params: dict[str, dict[str, Any]] = {}
     for name, cfg in enabled.items():
         try:
-            client_params[name] = _build_server_params(name, cfg)
+            overrides = (env_overrides or {}).get(name)
+            client_params[name] = _build_server_params(
+                name, cfg, env_overrides=overrides
+            )
             logger.info("Configured MCP server: %s", name)
         except ValueError as e:
             logger.warning("Skipping MCP server '%s': %s", name, e)
@@ -238,10 +258,13 @@ async def load_mcp_tools(
         logger.warning("No MCP tools loaded from any server")
         return []
 
-    # Register as MCP tools (deferred tool search)
-    from ainote.tools.tool_search import register_mcp_tools
+    # Register as MCP tools (deferred tool search) — skipped when the caller
+    # manages registration itself (per-user loads must not touch the global
+    # MCP_TOOL_NAMES set).
+    if register:
+        from ainote.tools.tool_search import register_mcp_tools
 
-    register_mcp_tools(tools)
+        register_mcp_tools(tools)
 
     logger.info(
         "Total MCP tools loaded: %d — %s",

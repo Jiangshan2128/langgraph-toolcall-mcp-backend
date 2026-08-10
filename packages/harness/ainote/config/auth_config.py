@@ -39,8 +39,29 @@ class AuthConfig(BaseSettings):
     # Optional independent secret used to derive the WeChat pseudo-password.
     # If set, rotating WECHAT_APPSECRET won't invalidate existing WeChat users.
     WECHAT_PASSWORD_SECRET: str = ""
+    # Comma-separated whitelist of user_ids allowed to run privileged ops
+    # (e.g. DingTalk MCP toggle). Empty = nobody is an admin.
+    ADMIN_USER_IDS: str = ""
+    # DingTalk OAuth (第三方应用授权) — 应用身份凭证, 由运营方在 .env 配置一次.
+    # DINGTALK_CLIENT_ID 即钉钉 AppKey; DINGTALK_CLIENT_SECRET 即 AppSecret.
+    DINGTALK_CLIENT_ID: str = ""
+    DINGTALK_CLIENT_SECRET: str = ""
+    # 钉钉 OAuth 回调地址(钉钉授权后回调到后端). 本地开发用 ngrok 公网地址,
+    # 部署到云托管后填云托管域名. 必须与钉钉应用后台配置的回调地址一致.
+    DINGTALK_REDIRECT_URI: str = ""
+    # 钉钉 OAuth scope: 企业内部应用用 "openid corpid"; 第三方个人应用用 "openid".
+    DINGTALK_SCOPE: str = "openid"
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
+    @property
+    def admin_user_ids(self) -> set[str]:
+        """Set of admin user ids parsed from ``ADMIN_USER_IDS``."""
+        return {u.strip() for u in self.ADMIN_USER_IDS.split(",") if u.strip()}
+
+    def is_admin(self, user_id: str) -> bool:
+        """True when ``user_id`` is in the admin whitelist."""
+        return user_id in self.admin_user_ids
 
     @property
     def jwks_url(self) -> str:
@@ -61,6 +82,15 @@ class AuthConfig(BaseSettings):
             and self.SUPABASE_SERVICE_ROLE_KEY
             and self.WECHAT_APPID
             and self.WECHAT_APPSECRET
+        )
+
+    @property
+    def dingtalk_oauth_enabled(self) -> bool:
+        """True when DingTalk OAuth is fully configured (app credentials + callback)."""
+        return bool(
+            self.DINGTALK_CLIENT_ID
+            and self.DINGTALK_CLIENT_SECRET
+            and self.DINGTALK_REDIRECT_URI
         )
 
 
