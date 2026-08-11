@@ -1,9 +1,9 @@
 from dataclasses import dataclass
 from functools import lru_cache
 
-from langchain_openai import ChatOpenAI
+from langchain_core.language_models import BaseChatModel
 
-from ainote.config.settings import settings
+from ainote.config.model_factory import create_model_with_failover
 
 
 @dataclass
@@ -14,11 +14,20 @@ class Configuration:
 
 
 @lru_cache
-def get_model(temperature: float = 0.0) -> ChatOpenAI:
-    """Return a configured chat model. Do not hard-code at module level."""
-    return ChatOpenAI(
-        model=settings.GLM_MODEL,
-        api_key=settings.GLM_API_KEY,
-        base_url=settings.GLM_BASE_URL,
-        temperature=temperature,
-    )
+def get_model(
+    name: str | None = None,
+    temperature: float = 0.0,
+) -> BaseChatModel:
+    """Return a chat model selected by config.yaml (the single business entry).
+
+    ``name`` selects a provider from ``config.yaml`` (None → ``active_model``).
+    Builds the failover chain (primary + ``fallback_to`` backups) so transient
+    provider errors (e.g. DeepSeek 503) fall through to a backup model.
+
+    This is the only function the business layer calls — e.g.
+    ``get_model()`` for TrustCall (thinking-disabled ``deepseek-chat``) and
+    ``get_model("deepseek-reasoning")`` for the main chat path. The factory
+    primitives (``create_model`` / ``create_model_with_failover``) stay in
+    ``config/`` for tests and precise control.
+    """
+    return create_model_with_failover(name, temperature=temperature)

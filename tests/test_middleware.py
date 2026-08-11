@@ -251,12 +251,12 @@ class TestSystemPromptMiddleware:
     TEMPLATE = "Profile: {user_profile} | Tasks: {tasks} | Instructions: {instructions} | DT: {deferred_tools}"
 
     def _make_deferred_getter(self, names: frozenset | None = None):
-        """Factory for deferred_setup_getter."""
+        """Factory for deferred_setup_getter (per-user signature)."""
 
         class FakeSetup:
             deferred_names = names or frozenset()
 
-        return lambda: FakeSetup()
+        return lambda user_id: FakeSetup()
 
     async def test_formats_template_with_all_fields(self):
         """All template placeholders are filled from context."""
@@ -325,6 +325,50 @@ class TestSystemPromptMiddleware:
         # The deferred section should mention available tools
         assert "dingtalk_create_event" in msg or "dingtalk" in msg.lower()
 
+    async def test_injects_dingtalk_union_id_from_store(self):
+        """When the user has a stored DingTalk token with union_id, it is injected
+        into the user profile so the LLM can call DingTalk tools directly."""
+        from langgraph.store.memory import InMemoryStore
+        from ainote.agents.memory import put_dingtalk_token
+
+        store = InMemoryStore()
+        put_dingtalk_token(store, "test-user", {"access_token": "AT", "union_id": "uni-123"})
+
+        mw = SystemPromptMiddleware(
+            deferred_setup_getter=self._make_deferred_getter(),
+            template=self.TEMPLATE,
+        )
+        captured: MiddlewareContext = {}
+
+        async def capture(state, runtime, ctx):
+            captured.update(ctx)
+            return {"messages": []}
+
+        rt = MagicMock()
+        rt.context.user_id = "test-user"
+        rt.store = store
+
+        await mw(_make_state(), rt, {"profile": {"name": "Ada"}}, capture)
+
+        assert "dingtalk_union_id" in captured["system_message"]
+        assert "uni-123" in captured["system_message"]
+
+    async def test_does_not_inject_union_id_when_absent(self):
+        """No stored token (or no union_id) → profile is unchanged."""
+        mw = SystemPromptMiddleware(
+            deferred_setup_getter=self._make_deferred_getter(),
+            template=self.TEMPLATE,
+        )
+        captured: MiddlewareContext = {}
+
+        async def capture(state, runtime, ctx):
+            captured.update(ctx)
+            return {"messages": []}
+
+        await mw(_make_state(), _make_runtime(), {"profile": {"name": "Ada"}}, capture)
+
+        assert "dingtalk_union_id" not in captured["system_message"]
+
 
 # ======================================================================
 # ToolBindingMiddleware
@@ -336,8 +380,9 @@ class TestToolBindingMiddleware:
         """Model is bound and stored in context."""
         fake_model = MagicMock()
 
-        def binder(*, promoted_names=None):
+        def binder(*, promoted_names=None, user_id="default"):
             fake_model._bound_promoted = promoted_names
+            fake_model._bound_user_id = user_id
             return fake_model
 
         mw = ToolBindingMiddleware(model_binder=binder)
@@ -353,12 +398,13 @@ class TestToolBindingMiddleware:
 
         assert captured["model"] is fake_model
         assert fake_model._bound_promoted == ["dingtalk_tool_1", "dingtalk_tool_2"]
+        assert fake_model._bound_user_id == "test-user"
 
     async def test_none_promoted_tools(self):
         """None promoted_tools is passed through correctly."""
         fake_model = MagicMock()
 
-        def binder(*, promoted_names=None):
+        def binder(*, promoted_names=None, user_id="default"):
             fake_model._bound_promoted = promoted_names
             return fake_model
 

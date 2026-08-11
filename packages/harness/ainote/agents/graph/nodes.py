@@ -13,10 +13,6 @@ from ainote.agents.debug_utils import (
     print_proposed_tasks,
     print_approval_result,
 )
-from ainote.agents.graph.deferred_cache import (
-    get_deferred_setup_cached,
-    refresh_deferred_setup,
-)
 from ainote.agents.graph.middleware import (
     ErrorHandlingMiddleware,
     MemoryLoadMiddleware,
@@ -83,13 +79,51 @@ async def agent_node(
     concerns. Each middleware handles one aspect of the request lifecycle:
     error handling, memory loading, system prompt construction, and tool
     binding.
+
+    Before the pipeline runs, per-user DingTalk tools are ensured (idempotent):
+    the first turn after a restart lazily loads the user's enabled DingTalk MCP
+    tools from the store. Ordering is guaranteed: ensure → SystemPrompt reads
+    the per-user deferred names → ToolBinding binds the per-user tools → LLM →
+    ScopedToolNode executes against the cached per-user ToolNode.
     """
+    user_id = state.get("user_id") or runtime.context.user_id
+    # Lazy import: builder → nodes → dingtalk_runtime → builder would be a
+    # module-load cycle; dingtalk_runtime pulls in builder at import time.
+    from ainote.agents.graph.dingtalk_runtime import ensure_user_tools
+
+    await ensure_user_tools(user_id)
     return await _agent_pipeline.run(state, runtime)
 
 
 # ======================================================================
 # HITL (unchanged)
 # ======================================================================
+
+DINGTALK_TASK_MANAGEMENT_TEMPLATE = """
+Based on the task changes below, you should sync relevant tasks to DingTalk to keep the user's DingTalk task list in sync.
+
+Here is the summary of task changes:
+{summary}
+"""
+
+
+def _build_dingtalk_sync_text(selected: list[dict], edited_tasks: dict) -> str:
+    """List only the DingTalk-selected tasks (with final titles/priority).
+
+    ``selected`` is the slice of ``proposed`` whose keys were flagged for
+    DingTalk; ``edited_tasks`` carries the user-edited final task data, falling
+    back to the original proposal when a task wasn't edited. Empty selection
+    yields an empty prompt (nothing to sync).
+    """
+    lines = []
+    for p in selected:
+        task = edited_tasks.get(p["key"], p["task"])
+        title = task.get("title")
+        priority = task.get("priority")
+        lines.append(f'- "{title}" (priority {priority})')
+    if not lines:
+        return ""
+    return "Create the following DingTalk todos:\n" + "\n".join(lines)
 
 
 def _parse_task_proposals(state: AgentState) -> list[dict] | None:
@@ -160,6 +194,13 @@ async def hitl_node(
         e["key"]: e["task"] for e in approval.get("edited_tasks", [])
     }
 
+    # DingTalk-selected tasks (per-task pills in the approval sheet). Legacy
+    # clients send a whole-form `submit_to_dingtalk` bool instead — fall back
+    # to every accepted task so old behavior is preserved.
+    dingtalk_keys: set[str] = set(approval.get("dingtalk_keys", []))
+    if not dingtalk_keys and approval.get("submit_to_dingtalk", False):
+        dingtalk_keys = {p["key"] for p in proposed if p["key"] not in rejected_keys}
+
     # DEBUG: Print approval details and edited tasks
     print_approval_result(approval, rejected_keys, edited_tasks)
 
@@ -199,15 +240,14 @@ async def hitl_node(
     # ── Build return messages ──
     messages: list[HumanMessage] = [HumanMessage(content=summary)]
 
-    # Check if user wants to submit tasks to DingTalk
-    if approval.get("submit_to_dingtalk", False):
-        DINGTALK_TASK_MANAGEMENT_TEMPLATE = """
-Based on the task changes below, you should sync relevant tasks to DingTalk to keep the user's DingTalk task list in sync.
-
-Here is the summary of task changes:
-{summary}
-"""
-        mcpPrompt = DINGTALK_TASK_MANAGEMENT_TEMPLATE.format(summary=summary)
+    # Sync only the DingTalk-selected tasks to DingTalk. The prompt lists each
+    # selected task with its final (user-edited) title and priority, so the LLM
+    # creates exactly the todos the user flagged in the sheet.
+    if dingtalk_keys:
+        ding_selected = [p for p in proposed if p["key"] in dingtalk_keys]
+        mcpPrompt = DINGTALK_TASK_MANAGEMENT_TEMPLATE.format(
+            summary=_build_dingtalk_sync_text(ding_selected, edited_tasks)
+        )
         messages.append(HumanMessage(content=mcpPrompt))
 
     return {"messages": messages}

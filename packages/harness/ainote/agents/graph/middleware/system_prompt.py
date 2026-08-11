@@ -28,10 +28,10 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 
-def _default_deferred_getter() -> DeferredToolSetup | None:
-    from ainote.agents.graph.deferred_cache import get_deferred_setup_cached
+def _default_deferred_getter(user_id: str) -> DeferredToolSetup | None:
+    from ainote.agents.graph.dingtalk_runtime import get_user_deferred_setup
 
-    return get_deferred_setup_cached()
+    return get_user_deferred_setup(user_id)
 
 
 def _default_template() -> str:
@@ -53,13 +53,13 @@ class SystemPromptMiddleware:
     via ``tool_search``).
 
     Dependencies (injectable for testing):
-        *deferred_setup_getter* — ``() -> DeferredToolSetup | None``
+        *deferred_setup_getter* — ``(user_id: str) -> DeferredToolSetup | None``
         *template* — ``str`` (the prompt template with ``{...}`` placeholders)
     """
 
     def __init__(
         self,
-        deferred_setup_getter: Callable[[], DeferredToolSetup | None] | None = None,
+        deferred_setup_getter: Callable[[str], DeferredToolSetup | None] | None = None,
         template: str | None = None,
     ) -> None:
         self._get_deferred = deferred_setup_getter or _default_deferred_getter
@@ -78,9 +78,26 @@ class SystemPromptMiddleware:
         tasks: list[dict] = context.get("tasks", [])
         instructions = context.get("instructions", {})
 
-        deferred_setup = self._get_deferred()
+        user_id = state.get("user_id") or runtime.context.user_id
+        deferred_setup = self._get_deferred(user_id)
         deferred_names = deferred_setup.deferred_names if deferred_setup else frozenset()
         deferred_section = get_deferred_tools_prompt_section(deferred_names)
+
+        # Enrich the profile with the user's DingTalk union_id if available.
+        # DingTalk todo tools (dingtalk_queryTasks etc.) require it, and it's
+        # only obtained at OAuth time (stored in the dingtalk token), NOT in
+        # the profile itself. Injecting it lets the LLM call DingTalk tools
+        # directly instead of searching contacts (which the app may lack
+        # permission for) or asking the user.
+        profile = context.get("profile") or {}
+        if profile:
+            profile = dict(profile)
+            from ainote.agents.memory import get_dingtalk_token
+
+            token = get_dingtalk_token(runtime.store, user_id)
+            # isinstance guard: tests pass MagicMock stores; only inject a real value.
+            if isinstance(token, dict) and token.get("union_id"):
+                profile.setdefault("dingtalk_union_id", token["union_id"])
 
         context["system_message"] = self._template.format(
             user_profile=profile or "未设置",

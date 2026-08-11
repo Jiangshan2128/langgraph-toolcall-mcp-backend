@@ -1,14 +1,14 @@
 import json as _json
 import logging
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from typing import Annotated, Literal, Optional
 
 from langchain.tools import tool
 from langchain_core.messages import SystemMessage, merge_message_runs
 from langgraph.prebuilt.tool_node import InjectedState, InjectedStore
 from langgraph.store.base import BaseStore
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from trustcall import create_extractor
 
 from ainote.agents.models import get_model
@@ -27,15 +27,12 @@ class Profile(BaseModel):
     """Profile of the user the agent is chatting with."""
 
     name: Optional[str] = Field(default=None, description="The user's name")
+    gender: Optional[str] = Field(default=None, description="The user's gender")
+    age: Optional[int] = Field(default=None, description="The user's age in years")
+    job: Optional[str] = Field(default=None, description="The user's job or profession")
     location: Optional[str] = Field(default=None, description="The user's location")
-    role: Optional[str] = Field(default=None, description="The user's role or job")
-    connections: list[str] = Field(
-        default_factory=list,
-        description="People, teams, or groups the user works with",
-    )
-    preferences: list[str] = Field(
-        default_factory=list,
-        description="Preferences for task planning and communication",
+    description: Optional[str] = Field(
+        default=None, description="Short description of the user"
     )
 
 
@@ -44,11 +41,53 @@ class Task(BaseModel):
 
     title: str = Field(description="The task title")
     description: Optional[str] = Field(default=None, description="Task details")
+    tag: Literal["work", "personal"] = Field(
+        default="personal",
+        description="Task category: work or personal",
+    )
     assignee: Optional[str] = Field(default=None, description="Who should own the task")
     priority: Literal["P0", "P1", "P2"] = Field(
         default="P1", description="P0 = urgent today, P1 = important, P2 = routine"
     )
-    time: str = Field(default="", description="when to start the task, e.g. 'today' or 'next week'")
+    time: Optional[date] = Field(
+        default=None,
+        description="Concrete start date of the task (ISO format, e.g. 2026-09-07)",
+    )
+
+    @field_validator("time", mode="before")
+    @classmethod
+    def _parse_time(cls, v):
+        """Coerce loose date strings (e.g. '9/7/2026', 'September 7, 2026')
+        to ``date``. LLM output for the ``time`` field isn't guaranteed to be
+        strict ISO, so accept common formats instead of letting validation
+        bounce back into TrustCall's retry loop.
+        """
+        if v is None or isinstance(v, date):
+            return v
+        if isinstance(v, datetime):
+            return v.date()
+        if not isinstance(v, str):
+            return v
+        s = v.strip()
+        try:
+            return date.fromisoformat(s)  # 2026-09-07
+        except ValueError:
+            pass
+        for fmt in (
+            "%m/%d/%Y",      # 9/7/2026, 09/07/2026
+            "%d/%m/%Y",      # 7/9/2026 (day-first, only reached if month>12)
+            "%m-%d-%Y",      # 09-07-2026
+            "%Y-%m-%d",      # 2026-9-7
+            "%Y/%m/%d",      # 2026/9/7
+            "%Y.%m.%d",      # 2026.9.7
+            "%b %d, %Y",     # Sep 7, 2026
+            "%B %d, %Y",     # September 7, 2026
+        ):
+            try:
+                return datetime.strptime(s, fmt).date()
+            except ValueError:
+                continue
+        return v  # 让 Pydantic 抛原生错误，TrustCall 校验循环可感知
     deadline: Optional[str] = Field(
         default=None,
         description="Deadline as YYYY-MM-DD or descriptive text",
@@ -59,6 +98,15 @@ class Task(BaseModel):
     )
     status: Literal["not started", "in progress", "done", "archived"] = Field(
         default="not started", description="Current task status"
+    )
+    recurrence: Optional[str] = Field(
+        default=None,
+        description=(
+            "Recurrence rule for recurring tasks, if any. "
+            "Use 'daily' for every day, or 'weekly:mon,wed,fri' for specific "
+            "weekdays (comma-separated, English 3-letter lowercase). "
+            "Single one-off tasks leave this null."
+        ),
     )
 
 logger = logging.getLogger(__name__)
@@ -76,7 +124,7 @@ async def update_profile(
     """Update the user's profile memory based on the conversation.
 
     Call this when the user provides personal information such as name,
-    location, role, connections, or preferences.
+    gender, job, location, or a short self-description.
     """
     user_id = _user_id(state)
     namespace = ("profile", user_id)
@@ -101,7 +149,8 @@ async def update_profile(
         tool_choice="Profile",
     )
     result = await extractor.ainvoke(
-        {"messages": updated_messages, "existing": existing_memories}
+        {"messages": updated_messages, "existing": existing_memories},
+        {"recursion_limit": 25},
     )
 
     for response, metadata in zip(result["responses"], result["response_metadata"]):
@@ -118,7 +167,11 @@ async def update_tasks(
 ) -> str:
     """Extract proposed task changes from the conversation.
 
-    Call this when the user mentions any plan or tasks.
+    Call this ONLY when the user mentions a discrete, one-shot actionable
+    to-do (a task/reminder/plan to do something). Do NOT call for recurring
+    habits or bookkeeping ("记录这个月开销", "每天量血压"), information
+    queries, content-writing requests, or chit-chat — those are out of scope
+    and should be handled by the capability-boundary reply instead.
     Returns a JSON payload with proposed task changes; the graph's
     ``hitl_node`` will present them for human approval before writing.
     """
@@ -133,11 +186,22 @@ async def update_tasks(
     )
 
     instruction = TRUSTCALL_INSTRUCTION.format(time=datetime.now().isoformat())
-    updated_messages = list(
-        merge_message_runs(
-            messages=[SystemMessage(content=instruction)] + state["messages"][:-1]
-        )
+    # TrustCall only needs the latest user intent + the current task list (in
+    # `existing`). Feeding the whole history pollutes the extraction: stale
+    # "No task changes detected." results and "[SYSTEM NOTIFICATION]" delete
+    # notices (which say "Do NOT re-add it") get re-injected and make the
+    # extractor produce nothing on subsequent turns.
+    latest_user = next(
+        (
+            m
+            for m in reversed(state["messages"])
+            if m.type == "human" and getattr(m, "content", "").strip()
+        ),
+        None,
     )
+    updated_messages = [SystemMessage(content=instruction)]
+    if latest_user is not None:
+        updated_messages.append(latest_user)
 
     extractor = create_extractor(
         get_model(),
@@ -146,7 +210,8 @@ async def update_tasks(
         enable_inserts=True,
     )
     result = await extractor.ainvoke(
-        {"messages": updated_messages, "existing": existing_memories}
+        {"messages": updated_messages, "existing": existing_memories},
+        {"recursion_limit": 25},
     )
 
     # ── Collect proposed changes (NO interrupt, NO store write) ──

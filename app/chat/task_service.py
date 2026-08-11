@@ -2,16 +2,17 @@ import logging
 
 from langchain_core.messages import HumanMessage
 
-from ainote.agents.graph.thread import resolve_thread_id
 from ainote.agents.graph import builder
+from ainote.agents.memory import delete_all_tasks as _delete_all_tasks
 from ainote.agents.memory import delete_task as _delete_task
 from ainote.agents.memory import get_tasks
 from ainote.agents.memory import update_task as _update_task
+from app.chat.thread import resolve_thread_id
 
 logger = logging.getLogger(__name__)
 
 
-def _notify_thread(user_id: str, text: str):
+def _notify_thread(user_id: str, session_id: str | None, text: str):
     """Append a system notification to the agent's conversation thread.
 
     The REST task endpoints mutate the store out-of-band (bypassing LangGraph),
@@ -22,10 +23,17 @@ def _notify_thread(user_id: str, text: str):
     removes the conflict. HumanMessage is used over SystemMessage because some
     OpenAI-compatible endpoints only honor the first system message as the true
     system prompt and underweight mid-thread system messages.
+
+    ``session_id`` is the frontend-generated conversation id. It is combined
+    with ``user_id`` into the thread_id (same helper as the chat service), so
+    the notification lands on the right per-account thread. When ``session_id``
+    is omitted (the frontend did not pass one), the notification is skipped —
+    we cannot know which conversation to notify.
     """
+    if not session_id:
+        return
     try:
-        thread_id = resolve_thread_id(user_id)
-        config = {"configurable": {"thread_id": thread_id}}
+        config = {"configurable": {"thread_id": resolve_thread_id(user_id, session_id)}}
         builder.graph.update_state(
             config,
             {"messages": [HumanMessage(content=text)]},
@@ -33,10 +41,17 @@ def _notify_thread(user_id: str, text: str):
     except Exception as exc:
         # Non-fatal: store mutation already succeeded. Don't fail the REST call
         # just because we couldn't notify the thread (e.g. no checkpoint yet).
-        logger.warning("Failed to notify thread for user=%s: %s", user_id, exc)
+        logger.warning("Failed to notify thread session=%s: %s", session_id, exc)
 
 
-def delete_task(key: str, user_id: str = "default") -> list[dict]:
+def list_tasks(user_id: str = "default") -> list[dict]:
+    """Return all existing tasks for a user."""
+    return get_tasks(builder.store, user_id)
+
+
+def delete_task(
+    key: str, user_id: str = "default", session_id: str | None = None
+) -> list[dict]:
     """Delete a task and return the updated task list."""
     tasks_before = get_tasks(builder.store, user_id)
     task = next((t for t in tasks_before if t["key"] == key), None)
@@ -46,14 +61,40 @@ def delete_task(key: str, user_id: str = "default") -> list[dict]:
 
     _notify_thread(
         user_id,
+        session_id,
         f"[SYSTEM NOTIFICATION] Task '{title}' (key={key}) was DELETED via the "
         f"REST API by the user. It no longer exists in the task list. Do NOT "
-        f"re-add it. If asked for the task list, report it as deleted.",
+        f"re-add it by yourself unless the user explicitly requests it.",
     )
     return get_tasks(builder.store, user_id)
 
 
-def update_task(key: str, user_id: str = "default", updates: dict = None) -> list[dict]:
+def delete_all_tasks(
+    user_id: str = "default", session_id: str | None = None
+) -> list[dict]:
+    """Delete every task for a user and return the (now empty) task list.
+
+    ``session_id`` 可选：传入时会在对应会话线程注入"全部删除"通知，防止 LLM
+    下次基于旧历史误判并重加已删除任务。
+    """
+    count = _delete_all_tasks(builder.store, user_id)
+
+    _notify_thread(
+        user_id,
+        session_id,
+        f"[SYSTEM NOTIFICATION] ALL tasks ({count} total) were DELETED via the "
+        f"REST API by the user. The task list is now empty. Do NOT re-add any "
+        f"previously mentioned tasks unless the user explicitly requests it.",
+    )
+    return get_tasks(builder.store, user_id)
+
+
+def update_task(
+    key: str,
+    user_id: str = "default",
+    updates: dict = None,
+    session_id: str | None = None,
+) -> list[dict]:
     """Update a task and return the updated task list."""
     _update_task(builder.store, user_id, key, updates or {})
 
@@ -63,6 +104,7 @@ def update_task(key: str, user_id: str = "default", updates: dict = None) -> lis
 
     _notify_thread(
         user_id,
+        session_id,
         f"[SYSTEM NOTIFICATION] Task '{title}' (key={key}) was UPDATED via the "
         f"REST API. Fields changed: {updates}. Current task list reflects this.",
     )

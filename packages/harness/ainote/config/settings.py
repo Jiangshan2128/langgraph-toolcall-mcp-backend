@@ -12,6 +12,7 @@ New code should import directly from the config modules::
 """
 
 from ainote.config.app_config import get_app_config
+from ainote.config.auth_config import get_auth_config
 from ainote.config.database_config import get_database_config
 from ainote.config.model_config import get_model_config
 from ainote.config.tool_config import get_tool_config
@@ -21,6 +22,7 @@ _GETTERS = (
     get_model_config,
     get_database_config,
     get_tool_config,
+    get_auth_config,
 )
 
 

@@ -1,0 +1,64 @@
+# ============================================================
+# AI Note Backend — LLM 模型配置 (model factory)
+# ============================================================
+# 结构说明：
+#   active_model    当前启用的模型名（必须是 model_providers 中某个 name）
+#   model_providers 模型列表，每项独立配置
+#
+# 密钥安全（重要）：
+#   config.yaml 只存放环境变量的「名字」(api_key_env)，绝不存放真实密钥。
+#   真实密钥写到 .env，例如：
+#     DEEPSEEK_API_KEY=sk-xxxx
+#     GLM_API_KEY=sk-xxxx
+#
+# 新增模型只需两步：
+#   1) 在此文件加一个 provider 条目
+#   2) 在 config/model_factory.py 的 PROVIDER_REGISTRY 注册对应构造器
+# ============================================================
+
+active_model: deepseek-chat
+
+model_providers:
+  # ── DeepSeek（reasoning 模型）───────────────────────────────
+  # thinking: false 会发送 extra_body={"thinking":{"type":"disabled"}}
+  # 关闭思考模式——TrustCall 内部使用 tool_choice="required"，
+  # DeepSeek reasoning 模型在思考开启时会拒绝该参数。
+  - name: deepseek-chat
+    provider: deepseek
+    model: deepseek-v4-flash
+    base_url: https://api.deepseek.com
+    api_key_env: DEEPSEEK_API_KEY
+    temperature: 0.0
+    thinking: false
+    max_retries: 3            # 重试 3 次（SDK 内建指数退避）
+    fallback_to: glm          # 重试耗尽后降级到 GLM（503 过载容灾）
+    # max_tokens: 4096        # 可选
+
+  # ── DeepSeek thinking 开启（主对话用）──────────────────────
+  # thinking: true 不发送 extra_body，启用思考模式提升复杂推理质量。
+  # 仅用于 tool_choice=auto/none 的主对话路径；TrustCall 内部用
+  # tool_choice="required"，thinking 开启会被 DeepSeek 拒绝（400），
+  # 所以 TrustCall 路径必须用 thinking: false 的 deepseek-chat。
+  - name: deepseek-reasoning
+    provider: deepseek
+    model: deepseek-v4-flash
+    base_url: https://api.deepseek.com
+    api_key_env: DEEPSEEK_API_KEY
+    temperature: 0.0
+    thinking: true
+    max_retries: 3            # 重试 3 次（SDK 内建指数退避）
+    fallback_to: glm          # 重试耗尽后降级到 GLM（503 过载容灾）
+    # max_tokens: 4096        # 可选
+
+  # ── 智谱 GLM（OpenAI 兼容协议）──────────────────────────────
+  # 用 ChatOpenAI + base_url 接入；thinking 字段对 GLM 无意义，
+  # 不会发送 extra_body。
+  - name: glm
+    provider: openai
+    model: glm-5.1
+    base_url: https://open.bigmodel.cn/api/paas/v4/
+    api_key_env: GLM_API_KEY
+    temperature: 0.0
+    max_retries: 3            # 重试 3 次（SDK 内建指数退避）
+    # thinking: true           # 可选，GLM 会忽略
+    # max_tokens: 4096         # 可选

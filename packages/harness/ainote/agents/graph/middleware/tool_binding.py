@@ -25,10 +25,14 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 
-def _default_model_binder(*, promoted_names: list[str] | None = None) -> ChatOpenAI:
+def _default_model_binder(
+    *,
+    promoted_names: list[str] | None = None,
+    user_id: str = "default",
+) -> ChatOpenAI:
     from ainote.agents.graph.tool_binder import get_model_with_tools
 
-    return get_model_with_tools(promoted_names=promoted_names)
+    return get_model_with_tools(promoted_names=promoted_names, user_id=user_id)
 
 
 # ---------------------------------------------------------------------------
@@ -61,7 +65,11 @@ class ToolBindingMiddleware:
         next_handler: NodeHandler,
     ) -> dict:
         promoted = state.get("promoted_tools")
-        context["model"] = self._bind(promoted_names=promoted)
+        user_id = state.get("user_id") or runtime.context.user_id
+        context["model"] = self._bind(promoted_names=promoted, user_id=user_id)
 
-        logger.debug("Model bound with %d promoted tools", len(promoted or []))
+        logger.debug(
+            "Model bound with %d promoted tools for user=%s",
+            len(promoted or []), user_id,
+        )
         return await next_handler(state, runtime, context)
