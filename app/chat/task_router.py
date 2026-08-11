@@ -39,11 +39,15 @@ def _as_http_error(e: Exception) -> None:
     """Convert a service-layer exception to a FastAPI HTTPException.
 
     - ``KeyError`` → 404
-    - Everything else → 500
+    - Everything else → 500 (generic message; real detail logged, never sent
+      to the client to avoid leaking internals).
     """
+    import logging
+
+    logging.getLogger(__name__).exception("Task operation failed: %s", e)
     if isinstance(e, KeyError):
         raise HTTPException(status_code=404, detail=str(e))
-    raise HTTPException(status_code=500, detail=str(e))
+    raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @taskRouter.delete("/{key}", response_model=TaskListResponse)

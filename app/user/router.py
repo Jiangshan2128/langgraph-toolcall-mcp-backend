@@ -9,9 +9,25 @@ store。身份来自 ``Authorization: Bearer <Supabase access_token>``，绝不�
 from fastapi import APIRouter, HTTPException, Request
 
 from app.common.dependencies import CurrentUserIdDep
-from app.user.service import ProfileValidationError, update_user_profile
+from app.user.service import (
+    ProfileValidationError,
+    delete_user_account,
+    get_user_profile,
+    update_user_profile,
+)
 
 userRouter = APIRouter(prefix="/user", tags=["user"])
+
+
+@userRouter.get("/profile")
+async def get_profile_endpoint(user_id: CurrentUserIdDep) -> dict:
+    """获取当前用户的档案信息。
+
+    前端登录成功后调用，用返回的 profile 初始化用户界面。未设置档案时
+    返回 ``{"ok": true, "profile": null}``。
+    """
+    profile = get_user_profile(user_id=user_id)
+    return {"ok": True, "profile": profile}
 
 
 @userRouter.put("/profile")
@@ -34,3 +50,16 @@ async def update_profile_endpoint(
     except ProfileValidationError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
     return {"ok": True, "profile": profile}
+
+
+@userRouter.delete("/account")
+async def delete_account_endpoint(user_id: CurrentUserIdDep) -> dict:
+    """注销当前账号:删除该用户的任务/画像/指令数据,并注销 Supabase 账号。
+
+    微信审核要求小程序提供账号注销能力。此接口以当前登录用户的
+    ``Authorization`` 为准(绝不接受请求体里的 user_id);匿名访客
+    (user_id="default") 无法注销,返回 400。
+    """
+    if user_id == "default":
+        raise HTTPException(status_code=400, detail="匿名访客没有可注销的账号")
+    return await delete_user_account(user_id)

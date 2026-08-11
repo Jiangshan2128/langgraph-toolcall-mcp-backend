@@ -18,6 +18,6 @@ def get_deferred_setup_cached() -> DeferredToolSetup | None:
 
 
 def refresh_deferred_setup(setup: DeferredToolSetup) -> None:
-    """Set the cached deferred-tool setup (called from init_graph)."""
+    """Set the cached deferred-tool setup (called from rebuild_deferred_and_graph)."""
     global _DEFERRED_SETUP
     _DEFERRED_SETUP = setup

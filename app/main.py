@@ -14,15 +14,20 @@ from fastapi import FastAPI
 
 from app.chat.router import chatRouter
 from ainote.config.settings import settings
-from ainote.agents.graph.builder import init_graph, pool
+from ainote.agents.graph.builder import pool
 from app.chat.task_router import taskRouter
+from app.jobs.router import jobRouter
 from app.user.router import userRouter
+from app.auth.router import authRouter
+from app.dingtalk.router import dingtalkRouter
+from app.diag.router import diagRouter
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Load DingTalk MCP tools (if enabled) and rebuild the graph with the full
-    # tool set. Failures are logged inside init_graph and non-fatal.
-    await init_graph()
+    # MCP servers (DingTalk, rag) are NOT loaded at startup — they're loaded
+    # on demand via the toggle endpoints (/api/v1/dingtalk/enable, etc.) to
+    # keep cold start fast. The core graph is already compiled at import time
+    # (builder.graph). Nothing to do here except manage the DB pool.
     yield
     if pool is not None:
         try:
@@ -37,9 +42,30 @@ fastApi = FastAPI(
     lifespan=lifespan,
 )
 
+
+@fastApi.exception_handler(Exception)
+async def _unhandled_exception_handler(request, exc):
+    """Global catch-all: log the real error server-side, return a generic 500.
+
+    Never send ``str(exc)`` to the client — it may leak DB connection strings,
+    API-key fragments, or internal paths. HTTPException (4xx/5xx raised by
+    routers) is handled by FastAPI's built-in handler and bypasses this.
+    """
+    import logging
+
+    logging.getLogger(__name__).exception("Unhandled error on %s", request.url.path)
+    from fastapi.responses import JSONResponse
+
+    return JSONResponse(status_code=500, content={"ok": False, "error": "Internal server error"})
+
+
 fastApi.include_router(chatRouter, prefix="/api/v1")
 fastApi.include_router(taskRouter, prefix="/api/v1")
+fastApi.include_router(jobRouter, prefix="/api/v1")
 fastApi.include_router(userRouter, prefix="/api/v1")
+fastApi.include_router(authRouter, prefix="/api/v1")
+fastApi.include_router(dingtalkRouter, prefix="/api/v1")
+fastApi.include_router(diagRouter, prefix="/api/v1")
 
 @fastApi.get("/")
 async def root():
@@ -48,5 +74,26 @@ async def root():
 
 @fastApi.get("/health")
 async def health():
+    """Liveness probe. Verifies the store is actually usable (not just that a
+    pool object exists) so CloudBase's health check reflects real availability.
+    """
+    from ainote.agents.graph import builder
+
+    store = builder.store
+    db_ok = False
+    if store is not None:
+        try:
+            ns = ("_health",)
+            store.put(ns, "ping", {"ok": True})
+            db_ok = store.get(ns, "ping") is not None
+            store.delete(ns, "ping")
+        except Exception:
+            db_ok = False
+
     db_backend = "postgresql" if pool is not None and not pool.closed else "memory"
-    return {"status": "ok", "version": settings.APP_VERSION, "database": db_backend}
+    return {
+        "status": "ok" if db_ok else "degraded",
+        "version": settings.APP_VERSION,
+        "database": db_backend,
+        "database_ok": db_ok,
+    }

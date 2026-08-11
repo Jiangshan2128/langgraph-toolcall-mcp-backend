@@ -41,6 +41,10 @@ class Task(BaseModel):
 
     title: str = Field(description="The task title")
     description: Optional[str] = Field(default=None, description="Task details")
+    tag: Literal["work", "personal"] = Field(
+        default="personal",
+        description="Task category: work or personal",
+    )
     assignee: Optional[str] = Field(default=None, description="Who should own the task")
     priority: Literal["P0", "P1", "P2"] = Field(
         default="P1", description="P0 = urgent today, P1 = important, P2 = routine"
@@ -94,6 +98,15 @@ class Task(BaseModel):
     )
     status: Literal["not started", "in progress", "done", "archived"] = Field(
         default="not started", description="Current task status"
+    )
+    recurrence: Optional[str] = Field(
+        default=None,
+        description=(
+            "Recurrence rule for recurring tasks, if any. "
+            "Use 'daily' for every day, or 'weekly:mon,wed,fri' for specific "
+            "weekdays (comma-separated, English 3-letter lowercase). "
+            "Single one-off tasks leave this null."
+        ),
     )
 
 logger = logging.getLogger(__name__)
@@ -154,7 +167,11 @@ async def update_tasks(
 ) -> str:
     """Extract proposed task changes from the conversation.
 
-    Call this when the user mentions any plan or tasks.
+    Call this ONLY when the user mentions a discrete, one-shot actionable
+    to-do (a task/reminder/plan to do something). Do NOT call for recurring
+    habits or bookkeeping ("记录这个月开销", "每天量血压"), information
+    queries, content-writing requests, or chit-chat — those are out of scope
+    and should be handled by the capability-boundary reply instead.
     Returns a JSON payload with proposed task changes; the graph's
     ``hitl_node`` will present them for human approval before writing.
     """

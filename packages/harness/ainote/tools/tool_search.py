@@ -42,6 +42,16 @@ def register_mcp_tools(tools: list[BaseTool]) -> None:
         MCP_TOOL_NAMES.add(t.name)
 
 
+def unregister_mcp_tools(names: set[str]) -> None:
+    """Remove tool names from the deferred set (e.g. when disabling DingTalk).
+
+    ``build_deferred_tool_setup`` filters deferred tools by ``is_mcp_tool``
+    (= name in ``MCP_TOOL_NAMES``), so names must be removed BEFORE rebuilding
+    the deferred setup, otherwise the unloaded tools stay in the catalog.
+    """
+    MCP_TOOL_NAMES.difference_update(names)
+
+
 def is_mcp_tool(t: BaseTool) -> bool:
     """Check whether a tool is a DingTalk MCP tool by name."""
     return t.name in MCP_TOOL_NAMES
@@ -214,15 +224,19 @@ def build_deferred_tool_setup(
     all_tools: list[BaseTool],
     *,
     enabled: bool = True,
+    force_deferred: bool = False,
 ) -> DeferredToolSetup:
     """Build deferred-tool setup from the full tool list.
 
     MCP-tagged tools are deferred; everything else is bound directly.
+    ``force_deferred`` treats ALL passed tools as deferred, bypassing the
+    global ``is_mcp_tool`` filter — used to build a per-user setup from a
+    per-user tool list without touching the shared ``MCP_TOOL_NAMES``.
     """
     if not enabled:
         return DeferredToolSetup(None, frozenset(), None)
 
-    deferred = [t for t in all_tools if is_mcp_tool(t)]
+    deferred = all_tools if force_deferred else [t for t in all_tools if is_mcp_tool(t)]
     if not deferred:
         return DeferredToolSetup(None, frozenset(), None)
 
@@ -244,6 +258,25 @@ def get_deferred_tools_prompt_section(
     if not deferred_names:
         return ""
     names = "\n".join(sorted(deferred_names))
+    # DingTalk todo tools that users ask about most. When the user wants to
+    # view/create their DingTalk todos, promote the exact tool with tool_search
+    # "select:..." instead of guessing from the name list. (Only listed if the
+    # server actually exposes them.)
+    common = [n for n in (
+        "dingtalk_queryTasks",
+        "dingtalk_createTask",
+        "dingtalk_updateTask",
+        "dingtalk_deleteTask",
+    ) if n in deferred_names]
+    tips = "\n".join(f"  - {n}" for n in common)
+    quick_guide = ""
+    if tips:
+        quick_guide = (
+            "\n"
+            "Common DingTalk todo operations — promote the exact tool first:\n"
+            f"{tips}\n"
+            "  Example: tool_search(query=\"select:dingtalk_queryTasks\"), then call it."
+        )
     return (
         "\n<available-deferred-tools>\n"
         f"{names}\n"
@@ -252,4 +285,5 @@ def get_deferred_tools_prompt_section(
         "These tools are available but not pre-loaded. To use one, call "
         "``tool_search`` with a keyword or exact name. "
         "Once fetched, the tool becomes callable for the rest of the conversation."
+        f"{quick_guide}"
     )

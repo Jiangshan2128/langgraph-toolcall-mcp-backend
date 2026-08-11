@@ -1,16 +1,16 @@
 import logging
+import os
 
 from langchain_core.messages import HumanMessage
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import START, END, StateGraph
-from langgraph.prebuilt import ToolNode
 from langgraph.store.memory import InMemoryStore
 
 from ainote.agents.models import Configuration
 from ainote.config.settings import settings
-from ainote.agents.debug_utils import print_section
 from ainote.agents.graph.nodes import agent_node, hitl_node
 from ainote.agents.graph.routing import route_after_agent, route_after_tools, route_start
+from ainote.agents.graph.scoped_tool_node import ScopedToolNode
 from ainote.agents.graph.state import AgentState
 from ainote.tools import ALL_TOOLS
 from ainote.transcription.graph import transcription_subgraph
@@ -20,6 +20,11 @@ logger = logging.getLogger(__name__)
 pool = None
 store = None
 checkpointer = None
+
+
+class _FatalStoreError(RuntimeError):
+    """Store is connected but not functional — treat as fatal (data loss risk)."""
+
 
 if settings.DATABASE_URL:
     try:
@@ -61,13 +66,20 @@ if settings.DATABASE_URL:
             logger.info("PostgresStore verified — read/write OK.")
         except Exception as e:
             logger.critical("PostgresStore health-check failed: %s", e)
-            raise  # 让服务启动失败，而不是静默回退到内存
+            # Connected but broken store = data-loss risk. Mark fatal so the
+            # outer handler re-raises instead of silently falling back to
+            # in-memory (which would lose ALL persisted data on restart).
+            raise _FatalStoreError(str(e)) from e
 
         logger.info("Using PostgresStore (Supabase) for persistence.")
 
         # checkpointer 暂用内存 — 业务数据 (task/profile/instructions) 走 store，已持久化
         checkpointer = MemorySaver()
         logger.info("Using MemorySaver for checkpoints (conversation state).")
+    except _FatalStoreError:
+        # Store is connected but broken — do NOT silently fall back to memory
+        # (that would lose all persisted data on restart). Fail startup loudly.
+        raise
     except Exception as e:
         logger.warning(
             "Failed to connect to Supabase PostgreSQL: %s. Falling back to in-memory store.", e
@@ -94,7 +106,9 @@ def build_graph():
     b = StateGraph(AgentState, context_schema=Configuration)
     b.add_node("transcription", transcription_subgraph)
     b.add_node("agent", agent_node)
-    b.add_node("tools", ToolNode(ALL_TOOLS))
+    # Per-user-scoped ToolNode: holds ONLY the shared core tools; DingTalk MCP
+    # tools are resolved per user at invocation (see scoped_tool_node.py).
+    b.add_node("tools", ScopedToolNode(ALL_TOOLS))
     b.add_node("hitl_node", hitl_node)
 
     # Conditional start routing: transcription if audio present, else directly to agent
@@ -117,64 +131,51 @@ def build_graph():
     return b.compile(store=store, checkpointer=checkpointer)
 
 
-# Core graph (built at import with the static tool set). If DingTalk MCP is
-# enabled, `init_graph()` (called from the FastAPI lifespan) extends ALL_TOOLS
-# and reassigns `graph`. Consumers should access `builder.graph` (module attr),
-# not bind the value at import, to see the post-startup instance.
+# Core graph (built at import with the static tool set). MCP servers are NOT
+# loaded at startup — they're added on demand via the toggle endpoints, which
+# call rebuild_deferred_and_graph() and reassign `graph`. Consumers should
+# access `builder.graph` (module attr), not bind the value at import, to see
+# the post-startup instance.
 graph = build_graph()
 
 
-async def init_graph():
-    """Load MCP tools from ``mcp_servers.json`` and rebuild the graph.
+def rebuild_deferred_and_graph() -> "DeferredToolSetup | None":
+    """DEPRECATED — no longer used by the DingTalk toggle.
 
-    Called once during app startup.  Failures are logged and non-fatal: the
-    core graph stays in place and the app continues with its built-in tools.
+    DingTalk is now per-user (see ``dingtalk_runtime``) and never mutates
+    ``ALL_TOOLS`` / ``builder.graph``, so the graph is compiled exactly once.
+    Kept only so legacy tests can patch it; delete once those are gone.
 
-    To add a new MCP server, edit ``mcp_servers.json`` in the project root
-    (see ``mcp_servers.example.json`` for the format).
+    Historically: rebuilt the deferred-tool setup and recompiled the graph
+    from the current ALL_TOOLS.
     """
     global graph
-    from ainote.tools.mcp_loader import load_mcp_tools
+    from ainote.tools.tool_search import DeferredToolSetup, build_deferred_tool_setup
+    from ainote.agents.graph.deferred_cache import refresh_deferred_setup
 
-    mcp_tools = await load_mcp_tools()
-    print_section(f"MCP Tools {len(mcp_tools)}")
-    if not mcp_tools:
-        return
+    # Drop stale tool_search so the rebuild recomputes it from remaining tools.
+    ALL_TOOLS[:] = [t for t in ALL_TOOLS if t.name != "tool_search"]
 
-    # MCP tools are already registered via register_mcp_tools() inside
-    # load_mcp_tools().  Now merge them into ALL_TOOLS for ToolNode.
-    existing = {t.name for t in ALL_TOOLS}
-    added = 0
-    for t in mcp_tools:
-        if t.name not in existing:
-            ALL_TOOLS.append(t)
-            existing.add(t.name)
-            added += 1
-
-    if added:
-        from ainote.tools.tool_search import build_deferred_tool_setup
-        from ainote.agents.graph.deferred_cache import refresh_deferred_setup
-
-        setup = build_deferred_tool_setup(ALL_TOOLS)
-        if setup.tool_search_tool:
-            # Add tool_search to ALL_TOOLS so ToolNode can execute it
-            ALL_TOOLS.append(setup.tool_search_tool)
-            logger.info("tool_search added to ALL_TOOLS (deferred=%d)", len(setup.deferred_names))
-        refresh_deferred_setup(setup)
-        graph = build_graph()
-        logger.info(
-            "Graph rebuilt with MCP tools (added=%d, total=%d).",
-            added,
-            len(ALL_TOOLS),
-        )
+    setup = build_deferred_tool_setup(ALL_TOOLS)
+    if setup.tool_search_tool:
+        # Add tool_search to ALL_TOOLS so ToolNode can execute it
+        ALL_TOOLS.append(setup.tool_search_tool)
+        logger.info("tool_search added to ALL_TOOLS (deferred=%d)", len(setup.deferred_names))
+    refresh_deferred_setup(setup)
+    graph = build_graph()
+    logger.info("Graph rebuilt (total tools=%d)", len(ALL_TOOLS))
+    return setup
 
 
 # 绘制并保存 graph 结构图
-try:
-    png_bytes = graph.get_graph(xray=1).draw_mermaid_png()
-    output_path = "graph.png"
-    with open(output_path, "wb") as f:
-        f.write(png_bytes)
-    logger.info("Graph diagram saved to %s", output_path)
-except Exception as e:
-    logger.warning("Failed to draw graph diagram: %s", e)
+# 容器/生产环境跳过：draw_mermaid_png 需要外部渲染，冷启动时会拖慢 5~15s。
+# 本地调试想看结构图时保留（SKIP_GRAPH_PNG 未设置）。
+if os.environ.get("SKIP_GRAPH_PNG") != "1":
+    try:
+        png_bytes = graph.get_graph(xray=1).draw_mermaid_png()
+        output_path = "graph.png"
+        with open(output_path, "wb") as f:
+            f.write(png_bytes)
+        logger.info("Graph diagram saved to %s", output_path)
+    except Exception as e:
+        logger.warning("Failed to draw graph diagram: %s", e)

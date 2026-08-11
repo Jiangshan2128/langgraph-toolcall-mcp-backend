@@ -12,7 +12,8 @@ wheels/
 # Environment-specific config
 .env
 
-# MCP server configuration (copy from mcp_servers.example.json)
+# MCP server configuration — TRACKED: contains only $ENV placeholders, no
+# real secrets. Must be in the image for CloudBase git builds.
 mcp_servers.json
 
 # MCP server moved to sibling repo (../mcp-server/); ignore remnants
@@ -26,3 +27,6 @@ mcp/
 
 # Test artifacts
 chunks_report.txt
+
+# CloudBase deploy package (generated)
+cloudbase-deploy.zip

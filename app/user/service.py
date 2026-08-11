@@ -19,8 +19,10 @@ import logging
 from pydantic import ValidationError
 
 from ainote.agents.graph import builder
-from ainote.agents.memory import put_profile
+from ainote.agents.memory import delete_all_user_data, get_profile, put_profile
+from ainote.config.auth_config import get_auth_config
 from ainote.tools.core.memory import Profile
+from app.auth.wechat_service import _gotrue_admin_delete
 
 logger = logging.getLogger(__name__)
 
@@ -46,3 +48,33 @@ def update_user_profile(user_id: str, raw_json: str) -> dict:
     put_profile(builder.store, user_id, data)
     logger.info("Profile replaced for user=%s", user_id)
     return data
+
+
+def get_user_profile(user_id: str) -> dict | None:
+    """Return the current profile for a user, or ``None`` if not set.
+
+    Reads the same ``("profile", user_id)`` namespace the LLM's
+    ``update_profile`` tool writes, so the REST GET and the agent share one
+    source of truth. The frontend calls this after login to hydrate its
+    profile UI.
+    """
+    return get_profile(builder.store, user_id)
+
+
+async def delete_user_account(user_id: str) -> dict:
+    """Delete a user's account: local store data + (best-effort) the GoTrue user.
+
+    Called by ``DELETE /api/v1/user/account`` after the frontend confirmation.
+    1. Remove every memory namespace the user owns (tasks / profile /
+       instructions) via ``delete_all_user_data``.
+    2. Delete the Supabase (GoTrue) user so they can't sign back in. Best
+       effort: missing service_role, network failure, or 404 (already gone)
+       do NOT fail the request — the store data is already gone and the
+       access token expires on its own.
+
+    Returns ``{"ok": True, "deleted": n}``.
+    """
+    deleted = delete_all_user_data(builder.store, user_id)
+    await _gotrue_admin_delete(get_auth_config(), user_id)
+    logger.info("Account deleted for user=%s (%d store items removed)", user_id, deleted)
+    return {"ok": True, "deleted": deleted}
