@@ -69,6 +69,7 @@ fastApi.include_router(diagRouter, prefix="/api/v1")
 
 @fastApi.get("/")
 async def root():
+    logging.getLogger(__name__).info("root health check hit")
     return {"message": "Hi AI Note Backend is running", "version": settings.APP_VERSION}
 
 
