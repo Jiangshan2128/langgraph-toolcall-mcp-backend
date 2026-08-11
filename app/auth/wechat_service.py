@@ -33,6 +33,7 @@ import httpx
 from fastapi import HTTPException
 
 from ainote.config.auth_config import AuthConfig, get_auth_config
+from app.common.wechat_ssl import wechat_ssl_context
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +69,10 @@ async def _code2session_http(cfg: AuthConfig, code: str) -> str:
         "grant_type": "authorization_code",
     }
     try:
-        async with httpx.AsyncClient(timeout=10) as client:
+        # CloudBase 容器把 api.weixin.qq.com 解析到内网网关 169.254.10.1(自签
+        # 证书,CA 在系统信任库但不在 certifi)。用系统库上下文:仍校验证书链,
+        # 只是信任源从 certifi 换成系统库,避免 CERT_VERIFY_FAILED → 502。
+        async with httpx.AsyncClient(timeout=10, verify=wechat_ssl_context()) as client:
             resp = await client.get(WECHAT_CODE2SESSION_URL, params=params)
             data = resp.json()
     except (httpx.RequestError, ValueError) as exc:

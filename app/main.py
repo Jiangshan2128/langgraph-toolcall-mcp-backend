@@ -20,6 +20,7 @@ from app.jobs.router import jobRouter
 from app.user.router import userRouter
 from app.auth.router import authRouter
 from app.dingtalk.router import dingtalkRouter
+from app.diag.router import diagRouter
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -64,6 +65,7 @@ fastApi.include_router(jobRouter, prefix="/api/v1")
 fastApi.include_router(userRouter, prefix="/api/v1")
 fastApi.include_router(authRouter, prefix="/api/v1")
 fastApi.include_router(dingtalkRouter, prefix="/api/v1")
+fastApi.include_router(diagRouter, prefix="/api/v1")
 
 @fastApi.get("/")
 async def root():

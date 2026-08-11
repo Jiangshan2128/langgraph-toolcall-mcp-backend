@@ -19,6 +19,7 @@ import logging
 import httpx
 
 from ainote.config.auth_config import get_auth_config
+from app.common.wechat_ssl import wechat_ssl_context
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +55,9 @@ def _access_token(cfg) -> str | None:
         f"&secret={cfg.WECHAT_APPSECRET}"
     )
     try:
-        with httpx.Client(timeout=10) as client:
+        # 同一 api.weixin.qq.com,容器内网关自签 CA 需用系统信任库(见
+        # app.common.wechat_ssl);否则这里会抛 CERT_VERIFY_FAILED。
+        with httpx.Client(timeout=10, verify=wechat_ssl_context()) as client:
             data = client.get(url).json()
     except (httpx.RequestError, ValueError) as exc:
         logger.warning("weixin access_token fetch failed: %s", exc)
@@ -76,7 +79,7 @@ def _clear_token(cfg) -> None:
 def _msg_sec_check(cfg, token: str, content: str, version: int, scene: int) -> dict:
     """Call ``/wxa/msg_sec_check`` once with the given token/version/scene."""
     try:
-        with httpx.Client(timeout=10) as client:
+        with httpx.Client(timeout=10, verify=wechat_ssl_context()) as client:
             resp = client.post(
                 WECHAT_MSG_SEC_CHECK_URL,
                 params={"access_token": token},
