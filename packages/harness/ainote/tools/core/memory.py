@@ -49,9 +49,15 @@ class Task(BaseModel):
     priority: Literal["P0", "P1", "P2"] = Field(
         default="P1", description="P0 = urgent today, P1 = important, P2 = routine"
     )
-    time: Optional[date] = Field(
-        default=None,
-        description="Concrete start date of the task (ISO format, e.g. 2026-09-07)",
+    time: date = Field(
+        default_factory=date.today,
+        description=(
+            "Scheduling date of the task, REQUIRED (ISO format, e.g. 2026-08-12). "
+            "Resolve relative dates (今天/明天/后天/本周五) to the concrete date "
+            "using the System Time — do NOT store the relative word itself, it "
+            "would keep matching 'today' forever. When the user mentions no date, "
+            "leave it as today (the default)."
+        ),
     )
 
     @field_validator("time", mode="before")
@@ -88,10 +94,6 @@ class Task(BaseModel):
             except ValueError:
                 continue
         return v  # 让 Pydantic 抛原生错误，TrustCall 校验循环可感知
-    deadline: Optional[str] = Field(
-        default=None,
-        description="Deadline as YYYY-MM-DD or descriptive text",
-    )
     pre_task: Optional[str] = Field(
         default=None,
         description="Prerequisite task title, if any",

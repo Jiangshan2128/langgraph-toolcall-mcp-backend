@@ -47,7 +47,7 @@ def print_task_item(idx: int, key: str, task: dict[str, Any], action: str | None
         print(f"[DEBUG]     action={action}")
     print(f"[DEBUG]     title={task.get('title')}")
     print(f"[DEBUG]     priority={task.get('priority')}")
-    print(f"[DEBUG]     deadline={task.get('deadline')}")
+    print(f"[DEBUG]     time={task.get('time')}")
     print("-" * 70)
 
 

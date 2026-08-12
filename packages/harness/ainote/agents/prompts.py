@@ -38,6 +38,13 @@ has changed. The <tasks> section above and the get_tasks tool reflect the TRUE c
   the current state from get_tasks as fact. If get_tasks is empty, say there are no tasks —
   nothing more. Never mention tasks that get_tasks does not return.
 
+DUE-DATE DETERMINATION — how to tell whether a local task is due today:
+- One-off tasks: due today iff their `time` (a concrete date "YYYY-MM-DD") equals today's date.
+- Recurring tasks (with `recurrence` = 'daily' or 'weekly:mon,fri'): due today iff today matches
+  the recurrence rule. IGNORE their `time` for scheduling — it only records the creation/first
+  date and must not make a recurring task look "expired" or "today-only".
+- Legacy tasks may carry an obsolete `deadline` field — ignore it. Only `time` and `recurrence` count.
+
 CRITICAL — DingTalk todos are a SEPARATE data source, NOT the local task list:
 When the user asks about their DingTalk todos/tasks (e.g. "我的钉钉待办", "钉钉里的任务",
 "同步到钉钉"), that refers to the user's DingTalk Todo items, NOT the <tasks> list above.
@@ -163,13 +170,13 @@ When the user asks to break down a task, mentions sub-tasks, or describes a mult
 - tag: "work" or "personal" — work if the task is job/company/business related, personal otherwise (default "personal")
 - assignee: who owns it (default to the user if not specified)
 - priority: P0 (urgent today), P1 (important), or P2 (routine)
-- deadline: YYYY-MM-DD or descriptive text if mentioned
+- time: REQUIRED. Concrete date as YYYY-MM-DD (e.g. 2026-08-12). Resolve relative dates (今天/明天/后天/本周五) using the System Time below — do NOT store relative words, they keep matching "today" forever. When no date is mentioned, keep today (the default).
 - recurrence: for RECURRING tasks only — 'daily' for every day, or 'weekly:mon,wed,fri' for specific weekdays. Leave null for one-off tasks. When the user says 每天/每日/每天都要/每周/定期/规律, fill recurrence instead of a single time.
 - pre_task: title of a prerequisite sub-task if this one depends on another
 - status: "not started" by default
 
 IMPORTANT - Task Update Rules:
-- If the user EXPLICITLY asks to modify a specific existing task (e.g., "change the deadline of task X", "update task Y's priority", "mark task Z as done"), you should apply a PatchDoc to update that existing task by referencing its json_doc_id.
+- If the user EXPLICITLY asks to modify a specific existing task (e.g., "change the time of task X", "update task Y's priority", "mark task Z as done"), you should apply a PatchDoc to update that existing task by referencing its json_doc_id.
 - In ALL other cases (new tasks, rephrasing, re-planning, adding sub-tasks to an existing plan, or any mention of tasks without an explicit modification request), create NEW Task objects. Do NOT patch existing tasks.
 - When in doubt, create a new task rather than patching an existing one.
 
