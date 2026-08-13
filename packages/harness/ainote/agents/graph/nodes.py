@@ -6,7 +6,6 @@ from langgraph.runtime import Runtime
 from langgraph.types import interrupt
 
 from ainote.agents.models import Configuration
-from ainote.agents.prompts import MODEL_SYSTEM_MESSAGE
 from ainote.agents.debug_utils import (
     build_hitl_summary,
     print_final_upserts,

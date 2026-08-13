@@ -16,8 +16,6 @@ from ainote.agents.prompts import CREATE_INSTRUCTIONS, TRUSTCALL_INSTRUCTION
 from ainote.agents.graph.state import AgentState
 from ainote.agents.memory import (
     get_instructions,
-    get_profile,
-    get_tasks,
     put_instructions,
     put_profile,
 )

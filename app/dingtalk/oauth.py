@@ -20,8 +20,6 @@ access_token / refresh_token / union_id，存到 per-user store。后端后续�
 
 from __future__ import annotations
 
-import hashlib
-import hmac
 import logging
 import secrets
 import urllib.parse

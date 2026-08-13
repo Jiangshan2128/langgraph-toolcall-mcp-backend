@@ -13,14 +13,9 @@ presumed orphaned (its runner died with the instance) and is lazily marked
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
-from typing import TYPE_CHECKING
-
 from langgraph.store.base import BaseStore
 
 from app.jobs.models import ACTIVE_STATUSES, TERMINAL_STATUSES, Job, JobStatus
-
-if TYPE_CHECKING:  # pragma: no cover - import guard, builder not needed at runtime
-    from ainote.agents.graph import builder
 
 NAMESPACE_PREFIX = "job"
 

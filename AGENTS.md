@@ -77,7 +77,6 @@ Key capabilities:
 │   │       ├── routing.py               <- Conditional edges: route_start, route_after_agent, route_after_tools
 │   │       ├── state.py                 <- AgentState (messages, user_id, metadata, audio)
 │   │       ├── thread.py                <- Per-user thread_id resolution with time-based rollover
-│   │       ├── deferred_cache.py        <- Cached deferred DingTalk MCP tool setup
 │   │       ├── tool_binder.py           <- get_model_with_tools(): core + promoted MCP tool binding
 │   │       └── middleware/
 │   │           ├── base.py              <- Middleware protocol, Pipeline (Russian-doll pattern)
@@ -96,7 +95,6 @@ Key capabilities:
 │   │   │   └── tasks.py                <- get_tasks, mark_task_done, update_task_priority, delete_task_by_title
 │   │   └── community/
 │   │       ├── search.py               <- web_search (Tavily)
-│   │       ├── dingtalk.py             <- DingTalk MCP tool loading
 │   │       └── __init__.py
 │   │
 │   ├── config/

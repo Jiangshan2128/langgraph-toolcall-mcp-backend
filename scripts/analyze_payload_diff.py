@@ -14,7 +14,6 @@
     python scripts/analyze_payload_diff.py
 """
 
-import os
 import sys
 from pathlib import Path
 
