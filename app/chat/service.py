@@ -185,7 +185,7 @@ async def chat_llm_stream(
             )
             return
 
-    except Exception as exc:
+    except Exception:
         # Real exception is logged server-side; only a generic message reaches
         # the client (str(exc) could leak DB connection strings / key fragments).
         logger.exception("chat_stream graph error user=%s", user_id)
@@ -196,7 +196,7 @@ async def chat_llm_stream(
     try:
         tasks = get_tasks(builder.store, user_id)
         yield {"event": "tasks", "data": json.dumps(tasks, ensure_ascii=False)}
-    except Exception as exc:
+    except Exception:
         logger.exception("chat_stream get_tasks error user=%s", user_id)
         yield {"event": "tasks", "data": "[]"}
 

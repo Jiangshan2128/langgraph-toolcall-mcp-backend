@@ -1,9 +1,8 @@
 import logging
 import os
 
-from langchain_core.messages import HumanMessage
 from langgraph.checkpoint.memory import MemorySaver
-from langgraph.graph import START, END, StateGraph
+from langgraph.graph import START, StateGraph
 from langgraph.store.memory import InMemoryStore
 
 from ainote.agents.models import Configuration
@@ -131,40 +130,10 @@ def build_graph():
     return b.compile(store=store, checkpointer=checkpointer)
 
 
-# Core graph (built at import with the static tool set). MCP servers are NOT
-# loaded at startup — they're added on demand via the toggle endpoints, which
-# call rebuild_deferred_and_graph() and reassign `graph`. Consumers should
-# access `builder.graph` (module attr), not bind the value at import, to see
-# the post-startup instance.
+# Core graph, compiled exactly once at import (DingTalk is per-user and never
+# mutates ALL_TOOLS / graph). Consumers should access `builder.graph` (module
+# attr), not bind the value at import.
 graph = build_graph()
-
-
-def rebuild_deferred_and_graph() -> "DeferredToolSetup | None":
-    """DEPRECATED — no longer used by the DingTalk toggle.
-
-    DingTalk is now per-user (see ``dingtalk_runtime``) and never mutates
-    ``ALL_TOOLS`` / ``builder.graph``, so the graph is compiled exactly once.
-    Kept only so legacy tests can patch it; delete once those are gone.
-
-    Historically: rebuilt the deferred-tool setup and recompiled the graph
-    from the current ALL_TOOLS.
-    """
-    global graph
-    from ainote.tools.tool_search import DeferredToolSetup, build_deferred_tool_setup
-    from ainote.agents.graph.deferred_cache import refresh_deferred_setup
-
-    # Drop stale tool_search so the rebuild recomputes it from remaining tools.
-    ALL_TOOLS[:] = [t for t in ALL_TOOLS if t.name != "tool_search"]
-
-    setup = build_deferred_tool_setup(ALL_TOOLS)
-    if setup.tool_search_tool:
-        # Add tool_search to ALL_TOOLS so ToolNode can execute it
-        ALL_TOOLS.append(setup.tool_search_tool)
-        logger.info("tool_search added to ALL_TOOLS (deferred=%d)", len(setup.deferred_names))
-    refresh_deferred_setup(setup)
-    graph = build_graph()
-    logger.info("Graph rebuilt (total tools=%d)", len(ALL_TOOLS))
-    return setup
 
 
 # 绘制并保存 graph 结构图

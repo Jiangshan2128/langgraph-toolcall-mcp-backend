@@ -6,7 +6,6 @@ allowing the LLM to discover and promote MCP tools at runtime via
 graph state (``promoted_tools``).
 """
 
-import json
 import logging
 
 from langchain_core.language_models import BaseChatModel

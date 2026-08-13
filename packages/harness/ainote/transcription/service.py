@@ -8,7 +8,7 @@ circular imports.
 import logging
 from io import BytesIO
 
-from groq import APIStatusError, AsyncGroq
+from groq import AsyncGroq
 
 from ainote.config.settings import settings
 
