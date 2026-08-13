@@ -24,7 +24,7 @@ import logging
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import HTMLResponse
 
-from app.common.dependencies import CurrentUserIdDep
+from app.common.dependencies import CurrentUserIdDep, StoreDep
 from app.dingtalk.schemas import DingTalkEnableRequest
 from app.dingtalk.oauth import (
     build_authorize_url,
@@ -32,7 +32,6 @@ from app.dingtalk.oauth import (
     get_user_unionid,
     _verify_state,
 )
-from ainote.agents.graph import builder
 from ainote.agents.memory import put_dingtalk_token
 from ainote.agents.graph.dingtalk_runtime import (
     DingTalkConfigError,
@@ -104,6 +103,7 @@ def _callback_page(*, ok: bool, title: str, message: str) -> HTMLResponse:
 
 @dingtalkRouter.get("/callback")
 async def callback(
+    store: StoreDep,
     code: str = Query(...),
     state: str = Query(...),
 ):
@@ -130,7 +130,7 @@ async def callback(
     except HTTPException:
         union_id = ""
     put_dingtalk_token(
-        builder.store,
+        store,
         user_id,
         {
             "access_token": token.get("access_token"),

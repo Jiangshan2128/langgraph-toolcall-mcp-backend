@@ -1,22 +1,37 @@
 import json
+from types import SimpleNamespace
 
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from langgraph.store.memory import InMemoryStore
 
-from ainote.agents.graph import builder
 from app.common.dependencies import get_current_user_id
 from app.user import service as user_service
 from app.user.router import userRouter
 
 
 @pytest.fixture
-def store(monkeypatch):
-    """Isolated in-memory store, swapped in for the shared ``builder.store``."""
-    s = InMemoryStore()
-    monkeypatch.setattr(builder, "store", s)
-    return s
+def store():
+    """Isolated in-memory store, injected into the app context."""
+    return InMemoryStore()
+
+
+@pytest.fixture(autouse=True)
+def _no_gotrue(monkeypatch):
+    """Don't hit the real Supabase GoTrue admin API in router tests.
+
+    Account deletion's GoTrue call is best-effort and covered separately at the
+    service level (``test_delete_user_account_service_removes_store_and_calls_gotrue``);
+    the router tests here only need to verify the store-clearing + 200 flow.
+    Without this, these tests depend on a live network when
+    ``SUPABASE_SERVICE_ROLE_KEY`` is configured.
+    """
+
+    async def _noop(cfg, user_id):
+        return None
+
+    monkeypatch.setattr(user_service, "_gotrue_admin_delete", _noop)
 
 
 @pytest.fixture
@@ -24,6 +39,9 @@ def client(store):
     """Standalone app with just the user router; auth dependency overridden."""
     app = FastAPI()
     app.include_router(userRouter, prefix="/api/v1")
+    # The router resolves store via Depends from app.state.app_context — the
+    # same shape the lifespan installs in production.
+    app.state.app_context = SimpleNamespace(store=store, graph=None, pool=None)
     app.dependency_overrides[get_current_user_id] = lambda: "user-42"
     return TestClient(app)
 
@@ -33,6 +51,7 @@ def client(store):
 
 def test_update_user_profile_valid(store):
     result = user_service.update_user_profile(
+        store,
         "user-1",
         json.dumps(
             {"name": "张三", "gender": "男", "job": "工程师", "location": "北京"}
@@ -48,19 +67,19 @@ def test_update_user_profile_valid(store):
 
 def test_update_user_profile_partial_uses_put_semantics(store):
     """PUT replaces the whole document: missing fields become None."""
-    result = user_service.update_user_profile("user-1", '{"name": "李四"}')
+    result = user_service.update_user_profile(store, "user-1", '{"name": "李四"}')
     assert result["name"] == "李四"
     assert result["gender"] is None
 
 
-def test_update_user_profile_invalid_json_raises():
+def test_update_user_profile_invalid_json_raises(store):
     with pytest.raises(user_service.ProfileValidationError):
-        user_service.update_user_profile("user-1", "{not json")
+        user_service.update_user_profile(store, "user-1", "{not json")
 
 
-def test_update_user_profile_wrong_type_raises():
+def test_update_user_profile_wrong_type_raises(store):
     with pytest.raises(user_service.ProfileValidationError):
-        user_service.update_user_profile("user-1", '{"name": 123}')
+        user_service.update_user_profile(store, "user-1", '{"name": 123}')
 
 
 # ── Router level ───────────────────────────────────────────────────────
@@ -184,7 +203,7 @@ def test_delete_user_account_service_removes_store_and_calls_gotrue(store, monke
 
     monkeypatch.setattr(user_service, "_gotrue_admin_delete", fake_delete)
 
-    result = asyncio.run(user_service.delete_user_account("user-9"))
+    result = asyncio.run(user_service.delete_user_account(store, "user-9"))
     assert result["ok"] is True
     assert result["deleted"] == 1
     assert called == ["user-9"]

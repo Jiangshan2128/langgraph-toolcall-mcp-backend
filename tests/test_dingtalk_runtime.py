@@ -8,12 +8,11 @@ whole point of the per-user redesign.
 
 import pytest
 
-from ainote.agents.graph import builder
 from ainote.agents.graph.dingtalk_runtime import (
     DingTalkConfigError,
     DingTalkError,
-    _loading_tasks,
-    _user_runtimes,
+    DingTalkRuntime,
+    configure_runtime,
     disable_dingtalk,
     enable_dingtalk,
     ensure_user_tools,
@@ -56,21 +55,23 @@ def _make_fake_load(tool_names, calls=None):
 
 @pytest.fixture(autouse=True)
 def _reset_runtime():
-    """Clear the in-memory per-user registry between tests."""
-    _user_runtimes.clear()
-    _loading_tasks.clear()
+    """Unconfigure the module-level runtime pointer between tests."""
+    configure_runtime(None)
     yield
-    _user_runtimes.clear()
-    _loading_tasks.clear()
+    configure_runtime(None)
 
 
 @pytest.fixture
-def store(monkeypatch):
-    """Use a real InMemoryStore as builder.store (persistence backend)."""
+def store():
+    """Point the module accessor at an isolated DingTalkRuntime + InMemoryStore.
+
+    Mirrors what the app container does at startup (``configure_runtime``), but
+    with a fresh instance + store per test so no state leaks across tests.
+    """
     from langgraph.store.memory import InMemoryStore
 
     s = InMemoryStore()
-    monkeypatch.setattr(builder, "store", s)
+    configure_runtime(DingTalkRuntime(store=s))
     return s
 
 
@@ -366,7 +367,6 @@ async def test_shared_globals_never_mutated_across_ops(monkeypatch, store):
     )
     before_tools = [t.name for t in ALL_TOOLS]
     before_mcp = set(MCP_TOOL_NAMES)
-    graph = builder.graph
 
     await enable_dingtalk("user-1", dict(CREDS))
     await disable_dingtalk("user-1")
@@ -374,4 +374,3 @@ async def test_shared_globals_never_mutated_across_ops(monkeypatch, store):
 
     assert [t.name for t in ALL_TOOLS] == before_tools
     assert set(MCP_TOOL_NAMES) == before_mcp
-    assert builder.graph is graph  # graph object identity unchanged

@@ -17,9 +17,11 @@ from fastapi import APIRouter, HTTPException
 from app.common.dependencies import (
     AudioFileDep,
     CurrentUserIdDep,
+    GraphDep,
     LanguageFormDep,
     MessageFormDep,
     SessionIdFormDep,
+    StoreDep,
     read_audio,
 )
 from app.jobs import runner
@@ -32,6 +34,8 @@ jobRouter = APIRouter(prefix="/chat/jobs", tags=["chat-jobs"])
 async def create_chat_job(
     session_id: SessionIdFormDep,
     user_id: CurrentUserIdDep,
+    store: StoreDep,
+    graph: GraphDep,
     message: MessageFormDep = "",
     language: LanguageFormDep = None,
     audio: AudioFileDep = None,
@@ -53,6 +57,8 @@ async def create_chat_job(
             audio_bytes=audio_bytes,
             audio_filename=audio_filename,
             audio_language=language,
+            store=store,
+            graph=graph,
         )
     except runner.ActiveJobConflict as exc:
         # Expose the blocking job's id so clients can self-heal: reject it
@@ -63,10 +69,12 @@ async def create_chat_job(
 
 
 @jobRouter.get("/{job_id}")
-async def get_chat_job(job_id: str, user_id: CurrentUserIdDep):
+async def get_chat_job(
+    job_id: str, user_id: CurrentUserIdDep, store: StoreDep
+):
     """Poll a job's status and payload."""
     try:
-        job = runner.get(user_id=user_id, job_id=job_id)
+        job = runner.get(store, user_id=user_id, job_id=job_id)
     except runner.JobNotFound as exc:
         raise HTTPException(status_code=404, detail=str(exc))
     return job.model_dump(mode="json")
@@ -77,6 +85,7 @@ async def resume_chat_job(
     job_id: str,
     request: JobResumeRequest,
     user_id: CurrentUserIdDep,
+    store: StoreDep,
 ):
     """Resume a job paused at HITL with the user's decision.
 
@@ -84,7 +93,7 @@ async def resume_chat_job(
     polling ``GET /chat/jobs/{job_id}`` for the final result.
     """
     try:
-        job = runner.resume(user_id=user_id, job_id=job_id, decision=request.decision)
+        job = runner.resume(store, user_id=user_id, job_id=job_id, decision=request.decision)
     except runner.JobNotFound as exc:
         raise HTTPException(status_code=404, detail=str(exc))
     except runner.JobNotResumable as exc:

@@ -11,8 +11,11 @@ build_authorize_url) and the store write so no network is touched.
 """
 
 import pytest
+from types import SimpleNamespace
+
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from langgraph.store.memory import InMemoryStore
 
 from app.common.dependencies import get_current_user_id
 from app.dingtalk import router as dingtalk_router
@@ -23,6 +26,8 @@ from app.dingtalk.router import dingtalkRouter
 def client():
     app = FastAPI()
     app.include_router(dingtalkRouter, prefix="/api/v1")
+    # The /callback endpoint resolves store via Depends from app.state.app_context.
+    app.state.app_context = SimpleNamespace(store=InMemoryStore(), graph=None, pool=None)
     app.dependency_overrides[get_current_user_id] = lambda: "user-1"
     return TestClient(app)
 
@@ -160,6 +165,14 @@ def test_callback_unionid_failure_still_stores_token(client, monkeypatch):
         "put_dingtalk_token",
         lambda store, user_id, token: stored.update(user_id=user_id, token=token),
     )
+    # 回调会同步内存注册表 enabled=True；测试环境没有配置 DingTalk runtime,
+    # 所以和 test_callback_exchanges_code_and_stores_token 一样 mock 掉。
+    marked = []
+
+    async def fake_mark(user_id):
+        marked.append(user_id)
+
+    monkeypatch.setattr(dingtalk_router, "mark_user_connected", fake_mark)
 
     resp = client.get("/api/v1/dingtalk/callback", params={"code": "c", "state": "s"})
 

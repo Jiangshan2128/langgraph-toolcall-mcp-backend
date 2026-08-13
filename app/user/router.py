@@ -8,7 +8,7 @@ store。身份来自 ``Authorization: Bearer <Supabase access_token>``，绝不�
 
 from fastapi import APIRouter, HTTPException, Request
 
-from app.common.dependencies import CurrentUserIdDep
+from app.common.dependencies import CurrentUserIdDep, StoreDep
 from app.user.service import (
     ProfileValidationError,
     delete_user_account,
@@ -20,13 +20,15 @@ userRouter = APIRouter(prefix="/user", tags=["user"])
 
 
 @userRouter.get("/profile")
-async def get_profile_endpoint(user_id: CurrentUserIdDep) -> dict:
+async def get_profile_endpoint(
+    user_id: CurrentUserIdDep, store: StoreDep
+) -> dict:
     """获取当前用户的档案信息。
 
     前端登录成功后调用，用返回的 profile 初始化用户界面。未设置档案时
     返回 ``{"ok": true, "profile": null}``。
     """
-    profile = get_user_profile(user_id=user_id)
+    profile = get_user_profile(store, user_id=user_id)
     return {"ok": True, "profile": profile}
 
 
@@ -34,6 +36,7 @@ async def get_profile_endpoint(user_id: CurrentUserIdDep) -> dict:
 async def update_profile_endpoint(
     request: Request,
     user_id: CurrentUserIdDep,
+    store: StoreDep,
 ) -> dict:
     """前端调用：用原始 JSON 字符串替换当前用户的档案信息。
 
@@ -46,14 +49,16 @@ async def update_profile_endpoint(
     """
     raw = (await request.body()).decode("utf-8")
     try:
-        profile = update_user_profile(user_id=user_id, raw_json=raw)
+        profile = update_user_profile(store, user_id=user_id, raw_json=raw)
     except ProfileValidationError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
     return {"ok": True, "profile": profile}
 
 
 @userRouter.delete("/account")
-async def delete_account_endpoint(user_id: CurrentUserIdDep) -> dict:
+async def delete_account_endpoint(
+    user_id: CurrentUserIdDep, store: StoreDep
+) -> dict:
     """注销当前账号:删除该用户的任务/画像/指令数据,并注销 Supabase 账号。
 
     微信审核要求小程序提供账号注销能力。此接口以当前登录用户的
@@ -62,4 +67,4 @@ async def delete_account_endpoint(user_id: CurrentUserIdDep) -> dict:
     """
     if user_id == "default":
         raise HTTPException(status_code=400, detail="匿名访客没有可注销的账号")
-    return await delete_user_account(user_id)
+    return await delete_user_account(store, user_id)

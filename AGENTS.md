@@ -57,12 +57,13 @@ Key capabilities:
 │   ├── main.py                           <- FastAPI entry + sys.path setup
 │   ├── chat/
 │   │   ├── router.py                     <- Chat endpoints (POST /chat, /chat/stream, /chat/resume)
-│   │   ├── service.py                    <- Chat LLM invocation, streaming, resume
+│   │   ├── service.py                    <- ChatService class: LLM invocation, streaming, resume (store/graph injected)
 │   │   ├── schemas.py                    <- ChatRequest, ChatResponse, ResumeRequest, TaskUpdateRequest
 │   │   ├── task_router.py               <- Task REST endpoints (DELETE/PATCH /tasks/{key})
 │   │   └── task_service.py              <- Task CRUD via store (out-of-band mutations)
 │   └── common/
-│       └── dependencies.py              <- FastAPI dependency injection (UserIdFormDep, AudioFileDep, etc.)
+│       ├── container.py                 <- AppContext DI container: creates store/graph/dingtalk in lifespan
+│       └── dependencies.py              <- FastAPI Depends accessors (StoreDep/GraphDep from app.state.app_context)
 │
 ├── packages/harness/ainote/              <- LLM/Agent core
 │   ├── agents/
@@ -72,7 +73,8 @@ Key capabilities:
 │   │   ├── debug_utils.py               <- HITL debug printing utilities
 │   │   └── graph/
 │   │       ├── __init__.py              <- Lazy re-exports (avoid circular imports)
-│   │       ├── builder.py               <- Graph construction, store init, MCP tool loading
+│   │       ├── builder.py               <- Pure factories: create_runtime(), build_graph() (no import-time side effects)
+│   │       ├── dingtalk_runtime.py      <- Per-user DingTalk MCP runtime registry (class owning injected store)
 │   │       ├── nodes.py                 <- agent_node (middleware pipeline), hitl_node (interrupt)
 │   │       ├── routing.py               <- Conditional edges: route_start, route_after_agent, route_after_tools
 │   │       ├── state.py                 <- AgentState (messages, user_id, metadata, audio)
@@ -124,12 +126,23 @@ Key capabilities:
 
 | File | Purpose |
 |------|---------|
-| `builder.py` | Graph construction, checkpointing, store initialization, MCP tool loading |
+| `builder.py` | Pure factories: `create_runtime()` → `(store, checkpointer, pool)`; `build_graph(store=, checkpointer=)`. No module globals / import-time side effects |
+| `dingtalk_runtime.py` | `DingTalkRuntime` class owning the injected store + per-user registry; module-level `configure_runtime()`/`get_runtime()` pointer for graph internals |
 | `nodes.py` | Middleware-pipeline agent node, HITL node with interrupt/approval logic |
 | `routing.py` | Conditional edges: transcription -> agent -> tools -> HITL -> END |
 | `state.py` | AgentState definition (messages, user_id, metadata, audio) |
 | `thread.py` | Per-user thread_id resolution with 5-minute idle rollover |
 | `tool_binder.py` | `get_model_with_tools()`: selects core + promoted MCP tools to bind to LLM |
+
+The lifespan-managed DI container (`app/common/container.py`) calls the factories
+once at startup and exposes the results on `app.state.app_context`; request
+handlers resolve them via `Depends` getters in `app/common/dependencies.py`
+(`StoreDep`, `GraphDep`, …). Chat endpoints never take `store`/`graph` directly
+in their signature — `app/chat/service.py` wraps them in a `ChatService` class,
+and handlers declare `svc: ChatServiceDep`
+(`Annotated[ChatService, Depends(get_chat_service)]`), so store/graph acquisition
+is fully in the service layer. Graph-internal call sites run outside request
+scope and use the `dingtalk_runtime` module-level pointer instead.
 
 ### 2. Agent Middleware Pipeline (`agents/graph/middleware/`)
 

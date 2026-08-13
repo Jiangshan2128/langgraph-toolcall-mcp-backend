@@ -2,7 +2,7 @@
 
 > 依据 2026-08 大连地区 Agent / AI 岗位招聘简章实测优化
 > 目标岗位：Agent 开发 / AI 产品经理
-> 分支 `feature/task-time-required`，代码以实况为准
+> 分支 `feature/app-context-di`（生命周期 DI 重构），代码以实况为准
 
 ---
 
@@ -47,12 +47,12 @@
 > 外企德科："必须有 LangChain/LangGraph 实际项目经验，基于 FastAPI 实现高并发接口、SSE 流式输出"
 
 **项目里怎么体现**（代码）：
-- 主图 4 节点 + 3 条条件路由：`builder.py:106-131`、`routing.py`
+- 主图 4 节点 + 3 条条件路由：`builder.py:122-160`（`build_graph`）、`routing.py`
   - 有音频 → 转录子图；agent 调工具 → tools；tools 出任务提案 → hitl_node 审批
 - **子图编排**：转录子图有自己的 private state（`transcription/graph.py`），图套图——这是 LangGraph 子图隔离状态的实战
-- **HITL 落地**：`interrupt()` 暂停 + `Command(resume=decision)` 恢复（`nodes.py`、`service.py:210-240`）
+- **HITL 落地**：`interrupt()` 暂停 + `Command(resume=decision)` 恢复（`nodes.py`、`service.py:246-251`）
 - **checkpoint / 会话**：`thread_id = user:session`（`app/chat/thread.py`），MemorySaver 存会话、PostgresStore 存业务记忆
-- 新 API 用对：`ainvoke(version="v2")` 拿 `GraphOutput`、`astream_events(version="v3")` 流式（`service.py:83-88,154-159`）
+- 新 API 用对：`ainvoke(version="v2")` 拿 `GraphOutput`、`astream_events(version="v3")` 流式（`service.py:102-107,170-204`）
 
 **面试怎么讲**：
 > "Agent 的本质是**决策循环**。我用 LangGraph 把它显式建模成状态机：节点只干一件事，条件边负责决策。这样每一步**可观测、可恢复、可插入人工节点**——比裸写 while 循环调 LLM 强在 checkpoint 能存中间状态、interrupt 能暂停、resume 能续跑。子图隔离状态我也有实战（音频转录子图用独立 state，不污染主图的对话消息）。"
@@ -95,7 +95,7 @@
 
 **项目里怎么体现**（代码）：
 - **长期记忆（业务数据）**：PostgresStore（Supabase）持久化，按用户 namespace 分域——`profile` / `task` / `instructions` / `dingtalk`（`memory.py:10-12`）
-- **会话记忆（短期）**：MemorySaver checkpoint 存对话状态，`thread_id` 区分会话（`builder.py:57-77`）——"业务记忆可持久、会话状态可轻量"
+- **会话记忆（短期）**：MemorySaver checkpoint 存对话状态，`thread_id` 区分会话（`builder.py:38-98` 的 `create_runtime` 返回）——"业务记忆可持久、会话状态可轻量"
 - **每轮注入系统提示**：`MemoryLoadMiddleware` 每轮从 store 读画像/任务/指令 → `SystemPromptMiddleware` 拼进系统提示（`middleware/memory_load.py`、`middleware/system_prompt.py`）→ Agent "越用越懂你"
 - **结构化写入**：TrustCall 抽取画像/任务/指令，`json_doc_id` 确定性去重防重复记忆；任务模型带优先级 P0/P1/P2、时间、周期 recurrence、状态（`tools/core/memory.py:39-112`）
 - **容错**：`Task.time` 宽松日期解析，LLM 输出不规范不炸整列表（`tools/core/memory.py:63-96`）
@@ -115,10 +115,10 @@
 > 亚信："FastAPI/gRPC 接口开发"
 
 **项目里怎么体现**（代码）：
-- **SSE 通道**：`sse_starlette.EventSourceResponse`（`router.py:92-121`）
-- **token 级流式**：`astream_events(version="v3")` 逐 token 吐 `stream.messages`（`service.py:154-166`）
+- **SSE 通道**：`sse_starlette.EventSourceResponse`（`router.py:97-127`）
+- **token 级流式**：`astream_events(version="v3")` 逐 token 吐 `stream.messages`（`service.py:180-184`）
 - **事件协议**：`connected`（先推防代理超时）→ `message`（逐 token）→ `interrupt`（HITL 审批卡片）→ `tasks`（流结束后推完整任务列表）→ `done` / `error`（`service.py`）
-- **流式中断检测**：`stream.interrupted()` / `stream.interrupts()` 干净拿到审批 payload，不 hack `get_state()`（`service.py:169-186`）
+- **流式中断检测**：`stream.interrupted()` / `stream.interrupts()` 干净拿到审批 payload，不 hack `get_state()`（`service.py:186-204`）
 - **serverless 降级**：微信云托管跑不了长连接 → **轮询 jobs API**，后台 asyncio task 跑图、interrupt 时阻塞等 resume 事件、多轮 HITL 天然支持（`app/jobs/runner.py:22-20`，超时/孤儿 job 都有兜底）
 
 **面试怎么讲**：
@@ -133,7 +133,8 @@
 | 维度 | 具体点 | 代码 |
 |---|---|---|
 | **架构** | Agent 节点用**中间件管道**（俄罗斯套娃）拆关注点：错误处理→记忆加载→系统提示→工具绑定→LLM | `middleware/base.py` |
-| **可用性** | 连接池启动即验证读写，宁可启动失败也不静默回退内存丢数据；健康检查真实读写 store | `builder.py:60-72`、`main.py:76-99` |
+| **架构演进（DI）** | 长生命周期组件改为 **lifespan 托管的 DI 容器**（`app.state.app_context` + `Depends` 访问器）；import 零副作用——不再 import 即连库/编译图/画图；测试可注入内存 store。参考了社区开源项目 **DeerFlow** 的 `langgraph_runtime` + `_require()` 模式 | `common/container.py`、`common/dependencies.py:138-202`、`builder.py:1-13` |
+| **可用性** | 连接池启动即验证读写，宁可启动失败也不静默回退内存丢数据；健康检查真实读写 store | `builder.py:63-93`、`main.py:74-99` |
 | **稳定性** | 模型层多 Provider 配置 + **瞬时错误自动 failover**（5xx/429），非瞬时 4xx 故意不切防掩盖 bug；思考模式分离（推理模型禁 tool_choice="required"） | `config/model_factory.py`、`config/model_failover.py` |
 | **合规** | 用户输入过**微信 msgSecCheck**，AI 回复再过滤，命中风险换占位文案；fail-open（审核服务挂了不卡用户） | `content_safety.py` |
 | **安全** | Supabase JWT 验签（ES256/JWKS）；`user_id` 永不信任请求体；全局异常不回传 `str(exc)` 防泄漏；账号删除（合规） | `dependencies.py:50-96`、`main.py:46-59` |
@@ -153,7 +154,8 @@
 4. **"改任务前模型直接写库，用户被坑"** → HITL 审批闭环（§2.1）
 5. **"全局启用钉钉，用户 A 凭据污染用户 B"** → 每用户运行时（§2.2）
 6. **"微信云托管跑不了长连接"** → 轮询 jobs API（§2.4）
-7. **"Supabase 掐空闲连接，池子借出死连接"** → 连接池 ping 自愈 + 生命周期（`builder.py:48-56`）
+7. **"Supabase 掐空闲连接，池子借出死连接"** → 连接池 ping 自愈 + 生命周期（`builder.py:63-80`）
+8. **"模块级单例 import 时就连库，测试一跑就炸、组件没法替换"** → 生命周期容器 + `Depends` 声明式注入，import 零副作用；DingTalk 运行时改持有注入 store 的类实例（§3、§6）
 
 ---
 
@@ -198,6 +200,8 @@
 **Q：模型幻觉怎么办？** → 结构化抽取兜底 + Pydantic 枚举/日期校验 + 宽松解析不炸列表 + 内容安全 + 写操作人工审批（§2.3、§3）。
 
 **Q：加一个新工具要改哪些地方？** → `tools/` 定义 → 加进 `ALL_TOOLS` → 写操作配 HITL（routing + nodes）。扩展点清晰。
+
+**Q：为什么不用模块级单例（import 就连库）？依赖怎么管理？** → 这是我对项目做的**架构重构**：长生命周期组件（DB 连接池、store、checkpointer、编译后的 graph、DingTalk 运行时）全部收进 FastAPI **lifespan** 的 `create_app_context()` 里创建，挂在 `app.state.app_context`，路由用 `Depends` 声明式取用（`StoreDep`/`GraphDep`）。收益：**import 零副作用**（不连库、不编译图、不画图，单测也能跑）、**组件可替换**（测试注入内存 store）、**关闭顺序对称**（finally 逆序 close）。进一步，router 不直接拿 store/graph——把它们包进 **`ChatService`**（`service.py`），经 `ChatServiceDep = Annotated[ChatService, Depends(get_chat_service)]` 注入 handler，handler 签名只剩 `svc` 一个依赖，store/graph 的获取完全下沉到 service 层（`get_chat_service` 里）。图内部节点跑在请求作用域外，用「模块级指针 → 运行时实例」的方式访问（DeerFlow 的 `get_local_provider` 同款模式）。**加分句**："这个架构我参考了社区开源项目 DeerFlow 的做法，先对比了它的 `langgraph_runtime` 再动手。"
 
 **Q：性能/成本考虑？** → MCP 不启动加载省冷启动；工具延迟装载省 token；前端 session_id 控制上下文长度；failover 保可用性（§2.4、§3）。
 

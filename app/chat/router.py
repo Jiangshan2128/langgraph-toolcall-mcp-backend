@@ -2,7 +2,7 @@ from fastapi import APIRouter
 from sse_starlette.sse import EventSourceResponse
 
 from app.chat.schemas import ChatResponse, ResumeRequest
-from app.chat.service import chat_llm, chat_llm_stream, resume_graph
+from app.chat.service import ChatServiceDep
 from app.common.dependencies import (
     AudioFileDep,
     CurrentUserIdDep,
@@ -20,6 +20,7 @@ chatRouter = APIRouter(prefix="/chat", tags=["chat"])
 async def chat(
     session_id: SessionIdFormDep,
     user_id: CurrentUserIdDep,
+    svc: ChatServiceDep,
     message: MessageFormDep = "",
     language: LanguageFormDep = None,
     audio: AudioFileDep = None,
@@ -44,7 +45,7 @@ async def chat(
     """
     audio_bytes, audio_filename = await read_audio(audio)
 
-    data = await chat_llm(
+    data = await svc.chat_llm(
         message=message,
         user_id=user_id,
         session_id=session_id,
@@ -60,7 +61,11 @@ async def chat(
 
 
 @chatRouter.post("/resume", response_model=ChatResponse)
-async def chat_resume(request: ResumeRequest, user_id: CurrentUserIdDep):
+async def chat_resume(
+    request: ResumeRequest,
+    user_id: CurrentUserIdDep,
+    svc: ChatServiceDep,
+):
     """Resume a paused graph with a human decision.
 
     Call this after the frontend renders an interrupt approval card and the
@@ -77,7 +82,7 @@ async def chat_resume(request: ResumeRequest, user_id: CurrentUserIdDep):
       - ``{"approved": true, "edited_tasks": [{"key": "...", "task": {...}}]}``
       - ``{"approved": false}`` — reject everything
     """
-    data = await resume_graph(
+    data = await svc.resume_graph(
         user_id=user_id,
         session_id=request.session_id,
         decision=request.decision,
@@ -93,6 +98,7 @@ async def chat_resume(request: ResumeRequest, user_id: CurrentUserIdDep):
 async def chat_stream(
     session_id: SessionIdFormDep,
     user_id: CurrentUserIdDep,
+    svc: ChatServiceDep,
     message: MessageFormDep = "",
     language: LanguageFormDep = None,
     audio: AudioFileDep = None,
@@ -111,7 +117,7 @@ async def chat_stream(
     """
     audio_bytes, audio_filename = await read_audio(audio)
 
-    return EventSourceResponse(chat_llm_stream(
+    return EventSourceResponse(svc.chat_llm_stream(
         message=message,
         user_id=user_id,
         session_id=session_id,

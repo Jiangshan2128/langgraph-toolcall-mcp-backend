@@ -18,7 +18,6 @@ import logging
 
 from pydantic import ValidationError
 
-from ainote.agents.graph import builder
 from ainote.agents.memory import delete_all_user_data, get_profile, put_profile
 from ainote.config.auth_config import get_auth_config
 from ainote.tools.core.memory import Profile
@@ -31,11 +30,13 @@ class ProfileValidationError(ValueError):
     """Raised when frontend-supplied profile JSON is not a valid ``Profile``."""
 
 
-def update_user_profile(user_id: str, raw_json: str) -> dict:
+def update_user_profile(store, user_id: str, raw_json: str) -> dict:
     """Validate ``raw_json`` against ``Profile`` and replace the user's profile in the store.
 
     PUT 语义：整份文档整体替换（未提供的字段落为 ``None``），与
     ``update_profile`` 工具的整份写入行为一致。
+
+    ``store`` is injected by the router (``Depends``) — never a module global.
 
     Returns the persisted profile as a JSON-safe dict.
     """
@@ -45,12 +46,12 @@ def update_user_profile(user_id: str, raw_json: str) -> dict:
         raise ProfileValidationError(str(exc)) from exc
 
     data = profile.model_dump(mode="json")
-    put_profile(builder.store, user_id, data)
+    put_profile(store, user_id, data)
     logger.info("Profile replaced for user=%s", user_id)
     return data
 
 
-def get_user_profile(user_id: str) -> dict | None:
+def get_user_profile(store, user_id: str) -> dict | None:
     """Return the current profile for a user, or ``None`` if not set.
 
     Reads the same ``("profile", user_id)`` namespace the LLM's
@@ -58,10 +59,10 @@ def get_user_profile(user_id: str) -> dict | None:
     source of truth. The frontend calls this after login to hydrate its
     profile UI.
     """
-    return get_profile(builder.store, user_id)
+    return get_profile(store, user_id)
 
 
-async def delete_user_account(user_id: str) -> dict:
+async def delete_user_account(store, user_id: str) -> dict:
     """Delete a user's account: local store data + (best-effort) the GoTrue user.
 
     Called by ``DELETE /api/v1/user/account`` after the frontend confirmation.
@@ -74,7 +75,7 @@ async def delete_user_account(user_id: str) -> dict:
 
     Returns ``{"ok": True, "deleted": n}``.
     """
-    deleted = delete_all_user_data(builder.store, user_id)
+    deleted = delete_all_user_data(store, user_id)
     await _gotrue_admin_delete(get_auth_config(), user_id)
     logger.info("Account deleted for user=%s (%d store items removed)", user_id, deleted)
     return {"ok": True, "deleted": deleted}
