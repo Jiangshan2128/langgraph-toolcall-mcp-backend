@@ -50,9 +50,9 @@
 - 主图 4 节点 + 3 条条件路由：`builder.py:122-160`（`build_graph`）、`routing.py`
   - 有音频 → 转录子图；agent 调工具 → tools；tools 出任务提案 → hitl_node 审批
 - **子图编排**：转录子图有自己的 private state（`transcription/graph.py`），图套图——这是 LangGraph 子图隔离状态的实战
-- **HITL 落地**：`interrupt()` 暂停 + `Command(resume=decision)` 恢复（`nodes.py`、`service.py:242-253`）
+- **HITL 落地**：`interrupt()` 暂停 + `Command(resume=decision)` 恢复（`nodes.py`、`service.py:246-251`）
 - **checkpoint / 会话**：`thread_id = user:session`（`app/chat/thread.py`），MemorySaver 存会话、PostgresStore 存业务记忆
-- 新 API 用对：`ainvoke(version="v2")` 拿 `GraphOutput`、`astream_events(version="v3")` 流式（`service.py:90-104,164-196`）
+- 新 API 用对：`ainvoke(version="v2")` 拿 `GraphOutput`、`astream_events(version="v3")` 流式（`service.py:102-107,170-204`）
 
 **面试怎么讲**：
 > "Agent 的本质是**决策循环**。我用 LangGraph 把它显式建模成状态机：节点只干一件事，条件边负责决策。这样每一步**可观测、可恢复、可插入人工节点**——比裸写 while 循环调 LLM 强在 checkpoint 能存中间状态、interrupt 能暂停、resume 能续跑。子图隔离状态我也有实战（音频转录子图用独立 state，不污染主图的对话消息）。"
@@ -115,10 +115,10 @@
 > 亚信："FastAPI/gRPC 接口开发"
 
 **项目里怎么体现**（代码）：
-- **SSE 通道**：`sse_starlette.EventSourceResponse`（`router.py:105-138`）
-- **token 级流式**：`astream_events(version="v3")` 逐 token 吐 `stream.messages`（`service.py:164-176`）
+- **SSE 通道**：`sse_starlette.EventSourceResponse`（`router.py:97-127`）
+- **token 级流式**：`astream_events(version="v3")` 逐 token 吐 `stream.messages`（`service.py:180-184`）
 - **事件协议**：`connected`（先推防代理超时）→ `message`（逐 token）→ `interrupt`（HITL 审批卡片）→ `tasks`（流结束后推完整任务列表）→ `done` / `error`（`service.py`）
-- **流式中断检测**：`stream.interrupted()` / `stream.interrupts()` 干净拿到审批 payload，不 hack `get_state()`（`service.py:179-196`）
+- **流式中断检测**：`stream.interrupted()` / `stream.interrupts()` 干净拿到审批 payload，不 hack `get_state()`（`service.py:186-204`）
 - **serverless 降级**：微信云托管跑不了长连接 → **轮询 jobs API**，后台 asyncio task 跑图、interrupt 时阻塞等 resume 事件、多轮 HITL 天然支持（`app/jobs/runner.py:22-20`，超时/孤儿 job 都有兜底）
 
 **面试怎么讲**：
@@ -201,7 +201,7 @@
 
 **Q：加一个新工具要改哪些地方？** → `tools/` 定义 → 加进 `ALL_TOOLS` → 写操作配 HITL（routing + nodes）。扩展点清晰。
 
-**Q：为什么不用模块级单例（import 就连库）？依赖怎么管理？** → 这是我对项目做的**架构重构**：长生命周期组件（DB 连接池、store、checkpointer、编译后的 graph、DingTalk 运行时）全部收进 FastAPI **lifespan** 的 `create_app_context()` 里创建，挂在 `app.state.app_context`，路由用 `Depends` 声明式取用（`StoreDep`/`GraphDep`）。收益：**import 零副作用**（不连库、不编译图、不画图，单测也能跑）、**组件可替换**（测试注入内存 store）、**关闭顺序对称**（finally 逆序 close）。图内部节点跑在请求作用域外，用「模块级指针 → 运行时实例」的方式访问（DeerFlow 的 `get_local_provider` 同款模式）。**加分句**："这个架构我参考了社区开源项目 DeerFlow 的做法，先对比了它的 `langgraph_runtime` 再动手。"
+**Q：为什么不用模块级单例（import 就连库）？依赖怎么管理？** → 这是我对项目做的**架构重构**：长生命周期组件（DB 连接池、store、checkpointer、编译后的 graph、DingTalk 运行时）全部收进 FastAPI **lifespan** 的 `create_app_context()` 里创建，挂在 `app.state.app_context`，路由用 `Depends` 声明式取用（`StoreDep`/`GraphDep`）。收益：**import 零副作用**（不连库、不编译图、不画图，单测也能跑）、**组件可替换**（测试注入内存 store）、**关闭顺序对称**（finally 逆序 close）。进一步，router 不直接拿 store/graph——把它们包进 **`ChatService`**（`service.py`），经 `ChatServiceDep = Annotated[ChatService, Depends(get_chat_service)]` 注入 handler，handler 签名只剩 `svc` 一个依赖，store/graph 的获取完全下沉到 service 层（`get_chat_service` 里）。图内部节点跑在请求作用域外，用「模块级指针 → 运行时实例」的方式访问（DeerFlow 的 `get_local_provider` 同款模式）。**加分句**："这个架构我参考了社区开源项目 DeerFlow 的做法，先对比了它的 `langgraph_runtime` 再动手。"
 
 **Q：性能/成本考虑？** → MCP 不启动加载省冷启动；工具延迟装载省 token；前端 session_id 控制上下文长度；failover 保可用性（§2.4、§3）。
 

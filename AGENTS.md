@@ -57,7 +57,7 @@ Key capabilities:
 │   ├── main.py                           <- FastAPI entry + sys.path setup
 │   ├── chat/
 │   │   ├── router.py                     <- Chat endpoints (POST /chat, /chat/stream, /chat/resume)
-│   │   ├── service.py                    <- Chat LLM invocation, streaming, resume
+│   │   ├── service.py                    <- ChatService class: LLM invocation, streaming, resume (store/graph injected)
 │   │   ├── schemas.py                    <- ChatRequest, ChatResponse, ResumeRequest, TaskUpdateRequest
 │   │   ├── task_router.py               <- Task REST endpoints (DELETE/PATCH /tasks/{key})
 │   │   └── task_service.py              <- Task CRUD via store (out-of-band mutations)
@@ -137,8 +137,12 @@ Key capabilities:
 The lifespan-managed DI container (`app/common/container.py`) calls the factories
 once at startup and exposes the results on `app.state.app_context`; request
 handlers resolve them via `Depends` getters in `app/common/dependencies.py`
-(`StoreDep`, `GraphDep`, …). Graph-internal call sites run outside request scope
-and use the `dingtalk_runtime` module-level pointer instead.
+(`StoreDep`, `GraphDep`, …). Chat endpoints never take `store`/`graph` directly
+in their signature — `app/chat/service.py` wraps them in a `ChatService` class,
+and handlers declare `svc: ChatServiceDep`
+(`Annotated[ChatService, Depends(get_chat_service)]`), so store/graph acquisition
+is fully in the service layer. Graph-internal call sites run outside request
+scope and use the `dingtalk_runtime` module-level pointer instead.
 
 ### 2. Agent Middleware Pipeline (`agents/graph/middleware/`)
 
