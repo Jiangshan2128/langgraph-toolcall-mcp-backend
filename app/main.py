@@ -10,11 +10,11 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 
 from app.chat.router import chatRouter
 from ainote.config.settings import settings
-from ainote.agents.graph.builder import pool
+from app.common.container import create_app_context
 from app.chat.task_router import taskRouter
 from app.jobs.router import jobRouter
 from app.user.router import userRouter
@@ -26,14 +26,12 @@ from app.diag.router import diagRouter
 async def lifespan(app: FastAPI):
     # MCP servers (DingTalk, rag) are NOT loaded at startup — they're loaded
     # on demand via the toggle endpoints (/api/v1/dingtalk/enable, etc.) to
-    # keep cold start fast. The core graph is already compiled at import time
-    # (builder.graph). Nothing to do here except manage the DB pool.
-    yield
-    if pool is not None:
-        try:
-            pool.close()
-        except Exception:
-            logging.getLogger(__name__).exception("Failed to close PostgreSQL connection pool")
+    # keep cold start fast. Everything long-lived (DB pool, store, graph,
+    # DingTalk runtime) is built once here by the container and exposed on
+    # app.state.app_context for request-scoped Depends access.
+    async with create_app_context() as ctx:
+        app.state.app_context = ctx
+        yield
 
 
 fastApi = FastAPI(
@@ -74,13 +72,13 @@ async def root():
 
 
 @fastApi.get("/health")
-async def health():
+async def health(request: Request):
     """Liveness probe. Verifies the store is actually usable (not just that a
     pool object exists) so CloudBase's health check reflects real availability.
     """
-    from ainote.agents.graph import builder
-
-    store = builder.store
+    ctx = getattr(request.app.state, "app_context", None)
+    store = getattr(ctx, "store", None)
+    pool = getattr(ctx, "pool", None)
     db_ok = False
     if store is not None:
         try:

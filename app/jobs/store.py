@@ -1,9 +1,12 @@
 """Durable job persistence on top of the LangGraph store.
 
-Jobs live in the ``("job", user_id)`` namespace of ``builder.store`` — the
+Jobs live in the ``("job", user_id)`` namespace of the shared store — the
 same Postgres/InMemory store used for tasks and profiles. Jobs are therefore
 per-user isolated and survive instance restarts: a poll can read a job even
 after the process that created it has been replaced by CloudBase scale-to-0.
+
+The store is passed in explicitly by every caller (resolved via ``Depends``
+in the router) — there is no module-level singleton to reach for.
 
 Stale-run protection: a job in an active status past its ``expires_at`` is
 presumed orphaned (its runner died with the instance) and is lazily marked
@@ -18,28 +21,6 @@ from langgraph.store.base import BaseStore
 from app.jobs.models import ACTIVE_STATUSES, TERMINAL_STATUSES, Job, JobStatus
 
 NAMESPACE_PREFIX = "job"
-
-_store_provider = None
-
-
-def _get_store() -> BaseStore:
-    """Return the shared store, importing ``builder`` lazily.
-
-    ``builder`` is imported at first use (not module import) so the job store
-    can be unit-tested with an injected ``InMemoryStore`` without booting the
-    whole graph.
-    """
-    if _store_provider is not None:
-        return _store_provider()
-    from ainote.agents.graph import builder
-
-    return builder.store
-
-
-def set_store_provider(provider) -> None:
-    """Test hook: override how the store is resolved (e.g. a fixed InMemoryStore)."""
-    global _store_provider
-    _store_provider = provider
 
 
 def _namespace(user_id: str) -> tuple[str, str]:

@@ -29,7 +29,6 @@ from fastapi import HTTPException
 from langchain_core.messages import HumanMessage
 from langgraph.types import Command
 
-from ainote.agents.graph import builder
 from ainote.agents.memory import get_tasks
 from ainote.agents.models import Configuration
 from app.chat.service import _last_ai_content
@@ -85,15 +84,19 @@ def submit(
     audio_bytes: bytes | None = None,
     audio_filename: str | None = None,
     audio_language: str | None = None,
+    *,
+    store,
+    graph,
 ) -> Job:
     """Create a job and start its background task. Returns the pending job.
 
     Rejects submission when an active job already exists for the same
     ``(user_id, session_id)`` — two concurrent runs on one LangGraph
     thread_id would race the checkpointer.
-    """
-    store = builder.store
 
+    ``store`` / ``graph`` are injected by the router (``Depends``) and captured
+    into the background ``_execute`` task.
+    """
     # 内容安全:对用户文本做微信 msgSecCheck,命中风险内容直接拒绝
     # (HTTPException → 路由层 400),不进入 LLM 流程。
     if message and not check_text_safety(message):
@@ -146,28 +149,29 @@ def submit(
             audio_bytes=audio_bytes,
             audio_filename=audio_filename,
             audio_language=audio_language,
+            store=store,
+            graph=graph,
         )
     )
     logger.info("job submitted id=%s user=%s session=%s", job.id, user_id, session_id)
     return job
 
 
-def get(user_id: str, job_id: str) -> Job:
+def get(store, user_id: str, job_id: str) -> Job:
     """Read a job for the caller, applying lazy expiry."""
-    job = job_store.get_job(builder.store, user_id, job_id)
+    job = job_store.get_job(store, user_id, job_id)
     if job is None:
         raise JobNotFound(f"Job '{job_id}' not found")
     return job
 
 
-def resume(user_id: str, job_id: str, decision: dict) -> Job:
+def resume(store, user_id: str, job_id: str, decision: dict) -> Job:
     """Deliver a human decision to a job paused at HITL and wake its runner.
 
     Sets the resume decision, flips the job to ``running`` optimistically
     (so the next poll does not re-render the approval card), then sets the
     runner's event. The runner wakes and continues from the checkpoint.
     """
-    store = builder.store
     job = job_store.get_job(store, user_id, job_id)
     if job is None:
         raise JobNotFound(f"Job '{job_id}' not found")
@@ -210,8 +214,10 @@ async def _execute(
     audio_bytes: bytes | None = None,
     audio_filename: str | None = None,
     audio_language: str | None = None,
+    *,
+    store,
+    graph,
 ) -> None:
-    store = builder.store
     job = job_store.get_job(store, user_id, job_id)
     if job is None:
         logger.warning("job %s disappeared before execution", job_id)
@@ -236,7 +242,7 @@ async def _execute(
 
         while True:
             result = await asyncio.wait_for(
-                builder.graph.ainvoke(
+                graph.ainvoke(
                     command,
                     config=config,
                     context=context,
@@ -256,7 +262,7 @@ async def _execute(
 
             # AI 输出内容安全:命中风险 → 替换为安全占位文案,不外泄原始违规内容。
             # to_thread 避免同步网络调用阻塞事件循环(与其他并发 job 隔离)。
-            result = _build_result(result.value, user_id)
+            result = _build_result(result.value, user_id, store=store)
             result["reply"] = await asyncio.to_thread(
                 filter_risky_reply, result["reply"]
             )
@@ -314,9 +320,9 @@ async def _set_status(store, job: Job, status: JobStatus, **fields) -> None:
     job_store.save_job(store, job)
 
 
-def _build_result(value: dict, user_id: str) -> dict:
+def _build_result(value: dict, user_id: str, *, store) -> dict:
     """Build the final ``{reply, tasks}`` payload, same shape as the sync chat."""
     return {
         "reply": _last_ai_content(value.get("messages", [])),
-        "tasks": get_tasks(builder.store, user_id),
+        "tasks": get_tasks(store, user_id),
     }

@@ -6,9 +6,11 @@ from app.chat.service import chat_llm, chat_llm_stream, resume_graph
 from app.common.dependencies import (
     AudioFileDep,
     CurrentUserIdDep,
+    GraphDep,
     LanguageFormDep,
     MessageFormDep,
     SessionIdFormDep,
+    StoreDep,
     read_audio,
 )
 
@@ -20,6 +22,8 @@ chatRouter = APIRouter(prefix="/chat", tags=["chat"])
 async def chat(
     session_id: SessionIdFormDep,
     user_id: CurrentUserIdDep,
+    store: StoreDep,
+    graph: GraphDep,
     message: MessageFormDep = "",
     language: LanguageFormDep = None,
     audio: AudioFileDep = None,
@@ -51,6 +55,8 @@ async def chat(
         audio_bytes=audio_bytes,
         audio_filename=audio_filename,
         audio_language=language,
+        store=store,
+        graph=graph,
     )
     return ChatResponse(
         answer=data["reply"],
@@ -60,7 +66,12 @@ async def chat(
 
 
 @chatRouter.post("/resume", response_model=ChatResponse)
-async def chat_resume(request: ResumeRequest, user_id: CurrentUserIdDep):
+async def chat_resume(
+    request: ResumeRequest,
+    user_id: CurrentUserIdDep,
+    store: StoreDep,
+    graph: GraphDep,
+):
     """Resume a paused graph with a human decision.
 
     Call this after the frontend renders an interrupt approval card and the
@@ -81,6 +92,8 @@ async def chat_resume(request: ResumeRequest, user_id: CurrentUserIdDep):
         user_id=user_id,
         session_id=request.session_id,
         decision=request.decision,
+        store=store,
+        graph=graph,
     )
     return ChatResponse(
         answer=data["reply"],
@@ -93,6 +106,8 @@ async def chat_resume(request: ResumeRequest, user_id: CurrentUserIdDep):
 async def chat_stream(
     session_id: SessionIdFormDep,
     user_id: CurrentUserIdDep,
+    store: StoreDep,
+    graph: GraphDep,
     message: MessageFormDep = "",
     language: LanguageFormDep = None,
     audio: AudioFileDep = None,
@@ -118,4 +133,6 @@ async def chat_stream(
         audio_bytes=audio_bytes,
         audio_filename=audio_filename,
         audio_language=language,
+        store=store,
+        graph=graph,
     ))

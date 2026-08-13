@@ -1,3 +1,17 @@
+"""Pure graph / persistence factories — NO import-time side effects.
+
+The old module created ``pool`` / ``store`` / ``checkpointer`` globals at import
+time (opening the DB pool, running the store health check, compiling the graph,
+and drawing graph.png on every import). That made any ``import`` — including a
+unit test — boot the whole stack and connect to the database.
+
+Now the lifespan-managed container (``app/common/container.py``) calls these
+factories explicitly and exposes the results on ``app.state.app_context``.
+Request handlers resolve components via the ``Depends`` getters in
+``app/common/dependencies.py`` — never ``import builder`` and reach for a
+module global.
+"""
+
 import logging
 import os
 
@@ -16,21 +30,32 @@ from ainote.transcription.graph import transcription_subgraph
 
 logger = logging.getLogger(__name__)
 
-pool = None
-store = None
-checkpointer = None
-
 
 class _FatalStoreError(RuntimeError):
     """Store is connected but not functional — treat as fatal (data loss risk)."""
 
 
-if settings.DATABASE_URL:
-    try:
-        from langgraph.store.postgres import PostgresStore
-        from psycopg.rows import dict_row
-        from psycopg_pool import ConnectionPool
+def create_runtime():
+    """Create ``(store, checkpointer, pool)`` once, preserving the historical
+    failure semantics in one place.
 
+    - ``DATABASE_URL`` unset → ``(InMemoryStore, MemorySaver, None)``.
+    - ``DATABASE_URL`` set but unreachable → warn and fall back to in-memory
+      (the operator sees the log; cold start keeps working).
+    - Connected but broken store (health check fails) → raise
+      ``_FatalStoreError``: never silently fall back to memory, which would
+      lose ALL persisted data on restart. The app fails to start loudly.
+    """
+    if not settings.DATABASE_URL:
+        logger.info("DATABASE_URL not set. Using in-memory store and checkpointer.")
+        return InMemoryStore(), MemorySaver(), None
+
+    from langgraph.store.postgres import PostgresStore
+    from psycopg.rows import dict_row
+    from psycopg_pool import ConnectionPool
+
+    pool = None
+    try:
         # 同步连接池 — PostgresStore 需要同步连接
         # min_size=1: eagerly connect on startup.
         # If the database is unreachable the app will fail to start — this is
@@ -65,37 +90,42 @@ if settings.DATABASE_URL:
             logger.info("PostgresStore verified — read/write OK.")
         except Exception as e:
             logger.critical("PostgresStore health-check failed: %s", e)
-            # Connected but broken store = data-loss risk. Mark fatal so the
-            # outer handler re-raises instead of silently falling back to
-            # in-memory (which would lose ALL persisted data on restart).
             raise _FatalStoreError(str(e)) from e
 
         logger.info("Using PostgresStore (Supabase) for persistence.")
-
         # checkpointer 暂用内存 — 业务数据 (task/profile/instructions) 走 store，已持久化
-        checkpointer = MemorySaver()
         logger.info("Using MemorySaver for checkpoints (conversation state).")
+        return store, MemorySaver(), pool
     except _FatalStoreError:
         # Store is connected but broken — do NOT silently fall back to memory
         # (that would lose all persisted data on restart). Fail startup loudly.
+        if pool is not None:
+            try:
+                pool.close()
+            except Exception:  # pragma: no cover - best-effort cleanup
+                pass
         raise
     except Exception as e:
+        # Couldn't even connect to the database — fall back to in-memory so
+        # local dev / cold start keeps working (the operator sees the warning).
+        if pool is not None:
+            try:
+                pool.close()
+            except Exception:  # pragma: no cover - best-effort cleanup
+                pass
         logger.warning(
             "Failed to connect to Supabase PostgreSQL: %s. Falling back to in-memory store.", e
         )
-        store = InMemoryStore()
-        checkpointer = MemorySaver()
-else:
-    store = InMemoryStore()
-    checkpointer = MemorySaver()
-    logger.info("DATABASE_URL not set. Using in-memory store and checkpointer.")
+        return InMemoryStore(), MemorySaver(), None
 
-def build_graph():
-    """Compile the agent graph from the current ALL_TOOLS.
 
-    Factored out so the graph can be recompiled after DingTalk MCP tools are
-    loaded at app startup (ToolNode captures the tool list at compile time).
-    
+def build_graph(*, store, checkpointer):
+    """Compile the agent graph bound to the given store + checkpointer.
+
+    Factored as a pure function (previously it read module globals) so the
+    graph can be compiled once at startup by the container and is trivially
+    recompilable in tests with an in-memory store.
+
     The graph includes:
     - START → route_start (conditional): routes to transcription if audio present
     - transcription subgraph: converts audio to text via Groq Whisper
@@ -130,21 +160,18 @@ def build_graph():
     return b.compile(store=store, checkpointer=checkpointer)
 
 
-# Core graph, compiled exactly once at import (DingTalk is per-user and never
-# mutates ALL_TOOLS / graph). Consumers should access `builder.graph` (module
-# attr), not bind the value at import.
-graph = build_graph()
+def save_graph_diagram(graph) -> None:
+    """Draw and save the graph structure diagram (debug aid).
 
-
-# 绘制并保存 graph 结构图
-# 容器/生产环境跳过：draw_mermaid_png 需要外部渲染，冷启动时会拖慢 5~15s。
-# 本地调试想看结构图时保留（SKIP_GRAPH_PNG 未设置）。
-if os.environ.get("SKIP_GRAPH_PNG") != "1":
+    容器/生产环境跳过：draw_mermaid_png 需要外部渲染，冷启动时会拖慢 5~15s。
+    本地调试想看结构图时保留（SKIP_GRAPH_PNG 未设置）。
+    """
+    if os.environ.get("SKIP_GRAPH_PNG") == "1":
+        return
     try:
         png_bytes = graph.get_graph(xray=1).draw_mermaid_png()
-        output_path = "graph.png"
-        with open(output_path, "wb") as f:
+        with open("graph.png", "wb") as f:
             f.write(png_bytes)
-        logger.info("Graph diagram saved to %s", output_path)
+        logger.info("Graph diagram saved to graph.png")
     except Exception as e:
         logger.warning("Failed to draw graph diagram: %s", e)

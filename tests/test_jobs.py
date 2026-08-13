@@ -16,7 +16,6 @@ from fastapi.testclient import TestClient
 from langchain_core.messages import AIMessage
 from langgraph.store.memory import InMemoryStore
 
-from ainote.agents.graph import builder
 from app.common.dependencies import get_current_user_id
 from app.jobs import runner
 from app.jobs import store as job_store
@@ -74,9 +73,8 @@ async def _wait_for_status(store, user_id, job_id, status, timeout: float = 5.0)
 # ── Store ───────────────────────────────────────────────────────────────
 
 
-def test_store_create_and_get(monkeypatch):
+def test_store_create_and_get():
     store = InMemoryStore()
-    monkeypatch.setattr(builder, "store", store)
     job = job_store.create_job(store, Job(user_id="u1", session_id="s1"), expires_in=1000)
 
     read = job_store.get_job(store, "u1", job.id)
@@ -91,9 +89,8 @@ def test_store_get_missing_returns_none():
     assert job_store.get_job(store, "u1", "nope") is None
 
 
-def test_store_lazy_expiry(monkeypatch):
+def test_store_lazy_expiry():
     store = InMemoryStore()
-    monkeypatch.setattr(builder, "store", store)
     job = job_store.create_job(
         store, Job(user_id="u1", session_id="s1", status=JobStatus.running),
         expires_in=1000,
@@ -106,10 +103,9 @@ def test_store_lazy_expiry(monkeypatch):
     assert read.status == JobStatus.timeout
 
 
-def test_find_active_job_ignores_expired(monkeypatch):
+def test_find_active_job_ignores_expired():
     """An expired active job (orphaned) does not block a new submit."""
     store = InMemoryStore()
-    monkeypatch.setattr(builder, "store", store)
     stale = job_store.create_job(
         store, Job(user_id="u1", session_id="s1", status=JobStatus.running),
         expires_in=1000,
@@ -165,88 +161,95 @@ def test_prune_old_jobs():
 # ── Runner ──────────────────────────────────────────────────────────────
 
 
-async def test_submit_runs_to_done(monkeypatch):
+async def test_submit_runs_to_done():
     store = InMemoryStore()
-    monkeypatch.setattr(builder, "store", store)
-    monkeypatch.setattr(builder, "graph", _FakeInstantGraph())
+    graph = _FakeInstantGraph()
 
-    job = runner.submit(user_id="u1", session_id="s1", message="hi")
+    job = runner.submit(
+        user_id="u1", session_id="s1", message="hi", store=store, graph=graph
+    )
     assert job.status == JobStatus.pending
 
     await _wait_for_status(store, "u1", job.id, JobStatus.done)
-    final = runner.get("u1", job.id)
+    final = runner.get(store, "u1", job.id)
     assert final.result == {"reply": "ok", "tasks": []}
 
 
-async def test_interrupt_then_resume_then_done(monkeypatch):
+async def test_interrupt_then_resume_then_done():
     store = InMemoryStore()
-    monkeypatch.setattr(builder, "store", store)
-    monkeypatch.setattr(builder, "graph", _FakeHITLGraph())
+    graph = _FakeHITLGraph()
 
-    job = runner.submit(user_id="u1", session_id="s1", message="add task")
+    job = runner.submit(
+        user_id="u1", session_id="s1", message="add task", store=store, graph=graph
+    )
 
     await _wait_for_status(store, "u1", job.id, JobStatus.interrupt)
-    paused = runner.get("u1", job.id)
+    paused = runner.get(store, "u1", job.id)
     assert paused.interrupt["type"] == "task_update_approval"
 
-    runner.resume("u1", job.id, {"approved": True})
+    runner.resume(store, "u1", job.id, {"approved": True})
 
     await _wait_for_status(store, "u1", job.id, JobStatus.done)
-    final = runner.get("u1", job.id)
+    final = runner.get(store, "u1", job.id)
     assert final.result["reply"] == "final reply"
 
 
-async def test_active_job_conflict_rejects_second_submit(monkeypatch):
+async def test_active_job_conflict_rejects_second_submit():
     store = InMemoryStore()
-    monkeypatch.setattr(builder, "store", store)
     active = job_store.create_job(
         store, Job(user_id="u1", session_id="s1"), expires_in=1000
     )
     runner._live_jobs.add(active.id)  # simulate a live runner task in this process
 
     with pytest.raises(runner.ActiveJobConflict) as exc_info:
-        runner.submit(user_id="u1", session_id="s1", message="second")
+        runner.submit(
+            user_id="u1",
+            session_id="s1",
+            message="second",
+            store=store,
+            graph=_FakeInstantGraph(),
+        )
     assert exc_info.value.job_id == active.id
     runner._live_jobs.discard(active.id)
 
 
-async def test_submit_settles_orphaned_active_job(monkeypatch):
+async def test_submit_settles_orphaned_active_job():
     """An active job whose runner died (restart) must not block a new submit.
 
     ``submit()`` settles it as ``timeout`` (releasing the per-session lock)
     and proceeds with the new job — same orphan handling as ``resume()``.
     """
     store = InMemoryStore()
-    monkeypatch.setattr(builder, "store", store)
-    monkeypatch.setattr(builder, "graph", _FakeInstantGraph())
+    graph = _FakeInstantGraph()
     stale = job_store.create_job(
         store,
         Job(user_id="u1", session_id="s1", status=JobStatus.interrupt),
         expires_in=1000,
     )
 
-    job = runner.submit(user_id="u1", session_id="s1", message="new")
+    job = runner.submit(
+        user_id="u1", session_id="s1", message="new", store=store, graph=graph
+    )
 
     assert job.id != stale.id
-    settled = runner.get("u1", stale.id)
+    settled = runner.get(store, "u1", stale.id)
     assert settled.status == JobStatus.timeout
     # The stale job no longer holds the lock — the new job is the active one.
     assert job_store.find_active_job(store, "u1", "s1").id == job.id
     await _wait_for_status(store, "u1", job.id, JobStatus.done)
 
 
-def test_resume_non_interrupt_raises(monkeypatch):
+def test_resume_non_interrupt_raises():
     store = InMemoryStore()
-    monkeypatch.setattr(builder, "store", store)
     job = job_store.create_job(
         store, Job(user_id="u1", session_id="s1", status=JobStatus.done),
         expires_in=1000,
     )
     with pytest.raises(runner.JobNotResumable):
-        runner.resume("u1", job.id, {"approved": True})
+        runner.resume(store, "u1", job.id, {"approved": True})
 
 
-def test_resume_orphaned_job_settles_as_timeout(monkeypatch):
+def test_resume_orphaned_job_settles_as_timeout():
     """An interrupt job whose runner died (restart) has no registry event.
 
     It can never be resumed, but it must not keep holding the per-session
@@ -254,34 +257,34 @@ def test_resume_orphaned_job_settles_as_timeout(monkeypatch):
     this session can proceed.
     """
     store = InMemoryStore()
-    monkeypatch.setattr(builder, "store", store)
     job = job_store.create_job(
         store, Job(user_id="u1", session_id="s1", status=JobStatus.interrupt),
         expires_in=1000,
     )
-    settled = runner.resume("u1", job.id, {"approved": True})
+    settled = runner.resume(store, "u1", job.id, {"approved": True})
     assert settled.status == JobStatus.timeout
     assert job_store.find_active_job(store, "u1", "s1") is None
 
 
-def test_get_missing_job_raises(monkeypatch):
+def test_get_missing_job_raises():
     store = InMemoryStore()
-    monkeypatch.setattr(builder, "store", store)
     with pytest.raises(runner.JobNotFound):
-        runner.get("u1", "nope")
+        runner.get(store, "u1", "nope")
 
 
 # ── Router ──────────────────────────────────────────────────────────────
 
 
 @pytest.fixture
-def client(monkeypatch):
+def client():
     store = InMemoryStore()
-    monkeypatch.setattr(builder, "store", store)
-    monkeypatch.setattr(builder, "graph", _FakeHITLGraph())
+    graph = _FakeHITLGraph()
 
     app = FastAPI()
     app.include_router(jobRouter, prefix="/api/v1")
+    # The router resolves store/graph via Depends from app.state.app_context —
+    # the same shape the lifespan installs in production.
+    app.state.app_context = SimpleNamespace(store=store, graph=graph, pool=None)
     app.dependency_overrides[get_current_user_id] = lambda: "user-42"
     with TestClient(app) as c:
         yield c

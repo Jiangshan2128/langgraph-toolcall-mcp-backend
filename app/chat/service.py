@@ -6,7 +6,6 @@ from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.types import Command
 
 from ainote.agents.models import Configuration
-from ainote.agents.graph import builder
 from ainote.agents.graph.state import AgentState
 from ainote.agents.memory import get_tasks
 from app.chat.thread import resolve_thread_id
@@ -27,14 +26,19 @@ def _build_chat_response(
     result_value: dict,
     user_id: str,
     interrupt_data: dict | None = None,
+    *,
+    store,
 ) -> dict:
     """Build the standard ``{reply, tasks, interrupt?}`` response dict.
 
     Called by both ``chat_llm`` and ``resume_graph`` to avoid repeating
     the ``_last_ai_content`` / ``get_tasks`` / dict construction pattern.
+
+    ``store`` is injected (via ``Depends`` in the router) — never read from a
+    module-level singleton.
     """
     reply = _last_ai_content(result_value.get("messages", []))
-    tasks = get_tasks(builder.store, user_id)
+    tasks = get_tasks(store, user_id)
     response = {"reply": reply, "tasks": tasks}
     if interrupt_data:
         response["interrupt"] = interrupt_data
@@ -51,6 +55,9 @@ async def chat_llm(
     audio_bytes: bytes | None = None,
     audio_filename: str | None = None,
     audio_language: str | None = None,
+    *,
+    store,
+    graph,
 ) -> dict:
     """Invoke the LangGraph agent and return reply + tasks.
 
@@ -80,7 +87,7 @@ async def chat_llm(
         "audio_language": audio_language,
     }
 
-    result = await builder.graph.ainvoke(
+    result = await graph.ainvoke(
         state,
         config=config,
         context=Configuration(user_id=user_id),
@@ -94,7 +101,7 @@ async def chat_llm(
             "HITL interrupt returned user=%s type=%s",
             user_id, interrupt_data.get("type"),
         )
-    response = _build_chat_response(result.value, user_id, interrupt_data)
+    response = _build_chat_response(result.value, user_id, interrupt_data, store=store)
     # AI 输出内容安全:命中风险 → 替换为安全占位文案。to_thread 避免阻塞事件循环。
     response["reply"] = await asyncio.to_thread(filter_risky_reply, response["reply"])
     return response
@@ -110,6 +117,9 @@ async def chat_llm_stream(
     audio_bytes: bytes | None = None,
     audio_filename: str | None = None,
     audio_language: str | None = None,
+    *,
+    store,
+    graph,
 ):
     """Stream the LangGraph agent output via SSE.
 
@@ -151,7 +161,7 @@ async def chat_llm_stream(
 
     try:
         # v3: returns AsyncGraphRunStream with .messages, .interrupted, etc.
-        stream = await builder.graph.astream_events(
+        stream = await graph.astream_events(
             state,
             config=config,
             context=Configuration(user_id=user_id),
@@ -194,7 +204,7 @@ async def chat_llm_stream(
 
     # 流结束后推送完整 task 列表
     try:
-        tasks = get_tasks(builder.store, user_id)
+        tasks = get_tasks(store, user_id)
         yield {"event": "tasks", "data": json.dumps(tasks, ensure_ascii=False)}
     except Exception:
         logger.exception("chat_stream get_tasks error user=%s", user_id)
@@ -211,6 +221,9 @@ async def resume_graph(
     user_id: str = "default",
     session_id: str = "",
     decision: dict | None = None,
+    *,
+    store,
+    graph,
 ) -> dict:
     """Resume a paused graph with a human decision.
 
@@ -226,7 +239,7 @@ async def resume_graph(
 
     logger.info("resume_graph user=%s decision=%s", user_id, decision)
 
-    result = await builder.graph.ainvoke(
+    result = await graph.ainvoke(
         Command(resume=decision or {}),
         config=config,
         context=Configuration(user_id=user_id),
@@ -237,4 +250,4 @@ async def resume_graph(
     interrupt_data = result.interrupts[0].value if result.interrupts else None
     if interrupt_data:
         logger.info("HITL re-interrupt after resume user=%s", user_id)
-    return _build_chat_response(result.value, user_id, interrupt_data)
+    return _build_chat_response(result.value, user_id, interrupt_data, store=store)
