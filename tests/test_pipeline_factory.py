@@ -1,8 +1,9 @@
 """Tests for the agent-node pipeline factory / lazy singleton.
 
-Covers: factory purity (``create_pipeline``), singleton reuse
-(``get_pipeline``), per-node injection (``make_agent_node``), and the
-``build_graph(..., pipeline=...)`` wiring.
+The pipeline is an internal detail of ``agent_node`` (not exposed through
+``build_graph``). These tests cover factory purity (``create_pipeline``),
+singleton reuse (``get_pipeline``), and the two injection seams inside
+``nodes.py``: patching ``get_pipeline`` or setting ``nodes._pipeline``.
 """
 
 from __future__ import annotations
@@ -11,11 +12,8 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 from langchain_core.messages import AIMessage
-from langgraph.checkpoint.memory import MemorySaver
-from langgraph.store.memory import InMemoryStore
 
 from ainote.agents.graph import nodes
-from ainote.agents.graph.builder import build_graph
 
 
 class _FakePipeline:
@@ -40,6 +38,14 @@ def _make_runtime() -> MagicMock:
     return rt
 
 
+def _patch_ensure_user_tools(monkeypatch) -> AsyncMock:
+    ensured = AsyncMock()
+    monkeypatch.setattr(
+        "ainote.agents.graph.dingtalk_runtime.ensure_user_tools", ensured
+    )
+    return ensured
+
+
 # ======================================================================
 # Factory / singleton
 # ======================================================================
@@ -62,64 +68,29 @@ def test_get_pipeline_reuses_one_instance():
 
 
 # ======================================================================
-# make_agent_node
+# Injection seams inside agent_node
 # ======================================================================
 
 
-async def test_make_agent_node_binds_explicit_pipeline(monkeypatch):
-    """Injected pipeline runs, and per-user DingTalk tools are ensured."""
+async def test_agent_node_uses_shared_pipeline(monkeypatch):
+    """Patching ``get_pipeline`` swaps what ``agent_node`` runs."""
     fake = _FakePipeline()
-    ensured = AsyncMock()
-    monkeypatch.setattr(
-        "ainote.agents.graph.dingtalk_runtime.ensure_user_tools", ensured
-    )
+    monkeypatch.setattr(nodes, "get_pipeline", lambda: fake)
+    ensured = _patch_ensure_user_tools(monkeypatch)
 
-    node = nodes.make_agent_node(fake)
-    result = await node(_make_state(), _make_runtime())
+    result = await nodes.agent_node(_make_state(), _make_runtime())
 
     assert result == {"messages": [AIMessage(content="ok")]}
     ensured.assert_awaited_once_with("test-user")
     assert len(fake.runs) == 1
 
 
-async def test_make_agent_node_defaults_to_shared_pipeline(monkeypatch):
-    """``None`` resolves to whatever ``get_pipeline()`` returns."""
+async def test_agent_node_uses_injected_holder_pipeline(monkeypatch):
+    """Setting ``nodes._pipeline`` directly is honored and restored safely."""
     fake = _FakePipeline()
-    monkeypatch.setattr(nodes, "get_pipeline", lambda: fake)
-    monkeypatch.setattr(
-        "ainote.agents.graph.dingtalk_runtime.ensure_user_tools", AsyncMock()
-    )
-
-    node = nodes.make_agent_node()  # pipeline=None
-    await node(_make_state(), _make_runtime())
-
-    assert len(fake.runs) == 1
-
-
-async def test_agent_node_uses_shared_pipeline(monkeypatch):
-    """The standalone ``agent_node`` runs the shared pipeline."""
-    fake = _FakePipeline()
-    monkeypatch.setattr(nodes, "get_pipeline", lambda: fake)
-    monkeypatch.setattr(
-        "ainote.agents.graph.dingtalk_runtime.ensure_user_tools", AsyncMock()
-    )
+    monkeypatch.setattr(nodes, "_pipeline", fake)
+    _patch_ensure_user_tools(monkeypatch)
 
     await nodes.agent_node(_make_state(), _make_runtime())
 
     assert len(fake.runs) == 1
-
-
-# ======================================================================
-# build_graph wiring
-# ======================================================================
-
-
-def test_build_graph_accepts_explicit_pipeline():
-    """``build_graph`` accepts a ``pipeline`` kwarg and still compiles."""
-    graph = build_graph(
-        store=InMemoryStore(),
-        checkpointer=MemorySaver(),
-        pipeline=_FakePipeline(),
-    )
-    assert graph is not None
-    assert hasattr(graph, "ainvoke")

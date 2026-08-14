@@ -47,16 +47,16 @@ async def _llm_invoke_handler(state, runtime, context):
 
 
 # ======================================================================
-# Pipeline (factory + shared singleton)
+# Pipeline (factory + shared singleton) — internal to agent_node
 # ======================================================================
 #
 # The pipeline is stateless: ``Pipeline.run()`` creates a fresh ``context``
 # dict and closure chain per invocation, and every middleware reads per-user
 # data from ``state``/``runtime`` at call time. A single shared instance is
-# therefore safe and sufficient. We expose a pure factory (plus a lazy
-# singleton holder) instead of a module-load global so the container / tests
-# can inject an explicit pipeline — mirroring ``builder.create_runtime()`` /
-# ``build_graph()``.
+# therefore safe and sufficient. ``agent_node`` resolves it internally via
+# ``get_pipeline()``; exposing a pure factory (plus a lazy singleton holder)
+# instead of a module-load global keeps import-time construction out and lets
+# tests inject a fake pipeline without ``build_graph`` knowing about it.
 
 _pipeline: Pipeline | None = None
 
@@ -82,8 +82,8 @@ def get_pipeline() -> Pipeline:
     """Return the shared pipeline, building it once on first use.
 
     Production keeps a single instance across all graphs/requests (the
-    pipeline is stateless, see above). Tests may inject a custom one via
-    ``make_agent_node`` or by setting ``nodes._pipeline`` directly.
+    pipeline is stateless, see above). Tests may inject a custom one by
+    patching ``get_pipeline`` or setting ``nodes._pipeline`` directly.
     """
     global _pipeline
     if _pipeline is None:
@@ -104,25 +104,6 @@ async def _run_agent(
 
     await ensure_user_tools(user_id)
     return await pipeline.run(state, runtime)
-
-
-def make_agent_node(pipeline: Pipeline | None = None):
-    """Build the LangGraph ``agent`` node bound to a specific pipeline.
-
-    ``pipeline=None`` (default) binds the shared singleton — the production
-    behavior. Passing a pipeline lets tests / the container inject a fake or
-    customized chain without patching module globals.
-    """
-    if pipeline is None:
-        pipeline = get_pipeline()
-
-    async def node(
-        state: AgentState,
-        runtime: Runtime[Configuration],
-    ) -> dict:
-        return await _run_agent(state, runtime, pipeline)
-
-    return node
 
 
 # ======================================================================
