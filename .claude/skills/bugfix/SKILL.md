@@ -1,6 +1,6 @@
 ---
 name: bugfix
-description: 对 GitHub issue 执行完整的自动 bugfix 流程——读取 issue → 确保 master 拉到最新代码且工作区干净 → 基于最新 master 新建 bugfix 分支 → 修改代码 → 跑单元/集成测试 → 推送 → 创建 PR → 推送修复内容+PR 链接到 OpenClaw 微信 → 收尾切回 master 分支。适用于「自动修复 issue」「bugfix」「fix this issue」「修复这个 bug」等请求，调用方式 /bugfix <issue编号>。
+description: 对 GitHub issue 执行完整的自动 bugfix 流程——读取 issue → 确保 master 拉到最新代码且工作区干净 → 基于最新 master 新建 bugfix 分支 → 修改代码 → 跑单元/集成测试 → 推送 → 创建 PR → 推送修复内容+PR 链接到 OpenClaw 微信 → 收尾保持本地分支不动（便于继续测试）。适用于「自动修复 issue」「bugfix」「fix this issue」「修复这个 bug」等请求，调用方式 /bugfix <issue编号>。
 ---
 
 # Bugfix 工作流（GitHub issue → 修复 → PR）
@@ -17,7 +17,7 @@ description: 对 GitHub issue 执行完整的自动 bugfix 流程——读取 is
 
 ## 流程（9 步）
 
-> **⚠️ 多 issue 串行约束（硬性）：** 若目标 repo 的 issue 列表里有多个待修复 issue，**严格按先后顺序一个一个处理，绝不并发/同时处理**。每次只处理一个，且必须完整走完第 1~9 步（读 issue → 修复 → 跑测试 → 推送 → 创建 PR → **微信通知成功** → **切回 master**）之后，才能开始下一个 issue。禁止：一次 checkout 多个分支、把多个修复混进同一个 commit/PR、或在前一个 PR 未创建成功时就跳到下一个。用 GitHub MCP 的 `mcp__github__list_issues` 获取 issue 列表，**必须带 `state="OPEN"` 只取 open issue**（已关闭/已合入的 issue 一律跳过、不在处理范围），按创建顺序从最旧（或列表顺序）开始逐个执行。
+> **⚠️ 多 issue 串行约束（硬性）：** 若目标 repo 的 issue 列表里有多个待修复 issue，**严格按先后顺序一个一个处理，绝不并发/同时处理**。每次只处理一个，且必须完整走完第 1~9 步（读 issue → 修复 → 跑测试 → 推送 → 创建 PR → **微信通知成功** → **本地分支保持不动供继续测试**）之后，才能开始下一个 issue。禁止：一次 checkout 多个分支、把多个修复混进同一个 commit/PR、或在前一个 PR 未创建成功时就跳到下一个。用 GitHub MCP 的 `mcp__github__list_issues` 获取 issue 列表，**必须带 `state="OPEN"` 只取 open issue**（已关闭/已合入的 issue 一律跳过、不在处理范围），按创建顺序从最旧（或列表顺序）开始逐个执行。
 
 ### 0. 确定 owner/repo 与 issue 编号
 ```bash
@@ -101,11 +101,7 @@ curl -s --noproxy '*' --max-time 60 -X POST "${OPENCLAW_HOOKS_URL:-http://localh
    - 推送成功后删除临时 payload 文件（`.claude/tmp/openclaw-bugfix-notify.json`）。
 
 ### 9. 收尾
-1. **切回 master**：PR 创建且微信通知成功后，把工作区切回 master 分支，确保后续工作（下一个 issue / 日常开发）从干净基线开始，不留 bugfix 分支在检出状态：
-   ```bash
-   git checkout master
-   git pull origin master
-   ```
+1. **保持分支不动**：PR 创建且微信通知成功后，**本地分支保持在当前 bugfix 分支上，不要切回 master** —— 提交后用户还需要在分支上继续测试/调整。若有进一步改动，直接在本分支提交并推送（PR 自动更新）。下一次处理 issue 时，第 2 步会自动 `git checkout master` 切走（届时如有未提交改动会被守卫拦截，需先 stash/提交）。
 2. 回报：PR 链接、改动摘要、测试结果、微信通知结果（runId）。若 body 含 `Closes #N`，PR 合并后 issue 自动关闭。bugfix 流程结束。
 
 ## Gotchas（本环境实测）
