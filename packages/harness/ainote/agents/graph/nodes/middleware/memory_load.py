@@ -12,7 +12,7 @@ import logging
 from typing import Any, Protocol
 
 from ainote.agents.models import Configuration
-from ainote.agents.graph.middleware.base import MiddlewareContext, NodeHandler
+from ainote.agents.graph.nodes.middleware.base import MiddlewareContext, NodeHandler
 from ainote.agents.graph.state import AgentState
 from langgraph.runtime import Runtime
 

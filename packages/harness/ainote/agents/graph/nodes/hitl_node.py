@@ -1,23 +1,16 @@
 import json
 import logging
 
-from langchain_core.messages import AIMessage, SystemMessage, ToolMessage, HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langgraph.runtime import Runtime
 from langgraph.types import interrupt
 
 from ainote.agents.models import Configuration
 from ainote.agents.debug_utils import (
     build_hitl_summary,
+    print_approval_result,
     print_final_upserts,
     print_proposed_tasks,
-    print_approval_result,
-)
-from ainote.agents.graph.middleware import (
-    ErrorHandlingMiddleware,
-    MemoryLoadMiddleware,
-    Pipeline,
-    SystemPromptMiddleware,
-    ToolBindingMiddleware,
 )
 from ainote.agents.graph.state import AgentState
 from ainote.agents.memory import (
@@ -27,76 +20,6 @@ from ainote.agents.memory import (
 
 logger = logging.getLogger(__name__)
 
-
-# ======================================================================
-# Core handler (private)
-# ======================================================================
-
-
-async def _llm_invoke_handler(state, runtime, context):
-    """Core handler: invoke the LLM with the prepared model and system prompt.
-
-    Context keys read:
-        ``"system_message"`` — ``str`` (from ``SystemPromptMiddleware``)
-        ``"model"``          — ``ChatOpenAI`` (from ``ToolBindingMiddleware``)
-    """
-    model = context["model"]
-    system_msg = SystemMessage(content=context["system_message"])
-    response = await model.ainvoke([system_msg] + state["messages"])
-    return {"messages": [response]}
-
-
-# ======================================================================
-# Pipeline (built once at module load)
-# ======================================================================
-
-_agent_pipeline = Pipeline(
-    middlewares=[
-        # Order matters: outermost first, innermost last.
-        # Error handling MUST be outermost to catch everything.
-        ErrorHandlingMiddleware(),
-        MemoryLoadMiddleware(),
-        SystemPromptMiddleware(),
-        ToolBindingMiddleware(),
-    ],
-    core_handler=_llm_invoke_handler,
-)
-
-
-# ======================================================================
-# Public node functions
-# ======================================================================
-
-
-async def agent_node(
-    state: AgentState,
-    runtime: Runtime[Configuration],
-):
-    """Load memories, build prompt, bind tools, and invoke the LLM.
-
-    Implementation delegates to a middleware pipeline for separation of
-    concerns. Each middleware handles one aspect of the request lifecycle:
-    error handling, memory loading, system prompt construction, and tool
-    binding.
-
-    Before the pipeline runs, per-user DingTalk tools are ensured (idempotent):
-    the first turn after a restart lazily loads the user's enabled DingTalk MCP
-    tools from the store. Ordering is guaranteed: ensure → SystemPrompt reads
-    the per-user deferred names → ToolBinding binds the per-user tools → LLM →
-    ScopedToolNode executes against the cached per-user ToolNode.
-    """
-    user_id = state.get("user_id") or runtime.context.user_id
-    # Lazy import: builder → nodes → dingtalk_runtime → builder would be a
-    # module-load cycle; dingtalk_runtime pulls in builder at import time.
-    from ainote.agents.graph.dingtalk_runtime import ensure_user_tools
-
-    await ensure_user_tools(user_id)
-    return await _agent_pipeline.run(state, runtime)
-
-
-# ======================================================================
-# HITL (unchanged)
-# ======================================================================
 
 DINGTALK_TASK_MANAGEMENT_TEMPLATE = """
 Based on the task changes below, you should sync relevant tasks to DingTalk to keep the user's DingTalk task list in sync.

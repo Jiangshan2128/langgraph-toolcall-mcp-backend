@@ -1,5 +1,5 @@
 @echo off
-REM Start AI Note Backend
+REM Start Banana Todo List Backend
 REM Usage: scripts\start.bat [port]
 
 set PORT=%1

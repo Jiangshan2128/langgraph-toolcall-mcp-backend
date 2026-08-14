@@ -1,7 +1,7 @@
 [project]
 name = "ainote-harness"
 version = "0.1.0"
-description = "AI Note Harness Package"
+description = "Banana Todo List Harness Package"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [

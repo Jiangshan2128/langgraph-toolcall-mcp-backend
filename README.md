@@ -1,4 +1,4 @@
-# AI Note Backend
+# Banana Todo List Backend
 
 AI-powered todo list 应用的后端服务，也是一个用于学习 AI Agent 架构的实操项目。
 

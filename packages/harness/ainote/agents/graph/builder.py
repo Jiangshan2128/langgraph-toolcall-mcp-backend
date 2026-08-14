@@ -21,9 +21,10 @@ from langgraph.store.memory import InMemoryStore
 
 from ainote.agents.models import Configuration
 from ainote.config.settings import settings
-from ainote.agents.graph.nodes import agent_node, hitl_node
-from ainote.agents.graph.routing import route_after_agent, route_after_tools, route_start
-from ainote.agents.graph.scoped_tool_node import ScopedToolNode
+from ainote.agents.graph.nodes.agent_node import agent_node
+from ainote.agents.graph.nodes.hitl_node import hitl_node
+from ainote.agents.graph.nodes.routing import route_after_agent, route_after_tools, route_start
+from ainote.agents.graph.nodes.scoped_tool_node import ScopedToolNode
 from ainote.agents.graph.state import AgentState
 from ainote.tools import ALL_TOOLS
 from ainote.transcription.graph import transcription_subgraph

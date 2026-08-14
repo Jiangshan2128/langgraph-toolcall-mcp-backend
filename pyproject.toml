@@ -1,7 +1,7 @@
 [project]
 name = "backend"
 version = "0.1.0"
-description = "AI Note Backend - FastAPI + LangChain + DeepSeek"
+description = "Banana Todo List Backend - FastAPI + LangChain + DeepSeek"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [

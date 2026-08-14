@@ -1,8 +1,8 @@
 from langchain_core.messages import AIMessage
 from langgraph.graph import END
 
-from ainote.agents.graph.nodes import _build_dingtalk_sync_text
-from ainote.agents.graph.routing import route_after_agent
+from ainote.agents.graph.nodes.hitl_node import _build_dingtalk_sync_text
+from ainote.agents.graph.nodes.routing import route_after_agent
 
 
 def _make_state_with_tool_call(tool_name: str):

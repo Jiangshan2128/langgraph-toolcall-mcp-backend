@@ -1,4 +1,4 @@
-# AI Note 后端接口协议
+# Banana Todo List 后端接口协议
 
 > Base URL: `/api/v1`
 
@@ -434,7 +434,7 @@ SSE 流内错误通过 `event: error` 推送，data 为错误描述字符串。
 
 ```json
 {
-  "message": "Hi AI Note Backend is running",
+  "message": "Hi Banana Todo List Backend is running",
   "version": "0.1.0"
 }
 ```
