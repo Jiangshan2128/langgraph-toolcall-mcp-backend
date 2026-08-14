@@ -47,20 +47,82 @@ async def _llm_invoke_handler(state, runtime, context):
 
 
 # ======================================================================
-# Pipeline (built once at module load)
+# Pipeline (factory + shared singleton)
 # ======================================================================
+#
+# The pipeline is stateless: ``Pipeline.run()`` creates a fresh ``context``
+# dict and closure chain per invocation, and every middleware reads per-user
+# data from ``state``/``runtime`` at call time. A single shared instance is
+# therefore safe and sufficient. We expose a pure factory (plus a lazy
+# singleton holder) instead of a module-load global so the container / tests
+# can inject an explicit pipeline — mirroring ``builder.create_runtime()`` /
+# ``build_graph()``.
 
-_agent_pipeline = Pipeline(
-    middlewares=[
-        # Order matters: outermost first, innermost last.
-        # Error handling MUST be outermost to catch everything.
-        ErrorHandlingMiddleware(),
-        MemoryLoadMiddleware(),
-        SystemPromptMiddleware(),
-        ToolBindingMiddleware(),
-    ],
-    core_handler=_llm_invoke_handler,
-)
+_pipeline: Pipeline | None = None
+
+
+def create_pipeline() -> Pipeline:
+    """Pure factory — no import-time side effects, no I/O.
+
+    Order matters: outermost first, innermost last. Error handling MUST be
+    outermost to catch everything.
+    """
+    return Pipeline(
+        middlewares=[
+            ErrorHandlingMiddleware(),
+            MemoryLoadMiddleware(),
+            SystemPromptMiddleware(),
+            ToolBindingMiddleware(),
+        ],
+        core_handler=_llm_invoke_handler,
+    )
+
+
+def get_pipeline() -> Pipeline:
+    """Return the shared pipeline, building it once on first use.
+
+    Production keeps a single instance across all graphs/requests (the
+    pipeline is stateless, see above). Tests may inject a custom one via
+    ``make_agent_node`` or by setting ``nodes._pipeline`` directly.
+    """
+    global _pipeline
+    if _pipeline is None:
+        _pipeline = create_pipeline()
+    return _pipeline
+
+
+async def _run_agent(
+    state: AgentState,
+    runtime: Runtime[Configuration],
+    pipeline: Pipeline,
+) -> dict:
+    """Shared agent-node body: ensure DingTalk tools, then run the pipeline."""
+    user_id = state.get("user_id") or runtime.context.user_id
+    # Lazy import: builder → nodes → dingtalk_runtime → builder would be a
+    # module-load cycle; dingtalk_runtime pulls in builder at import time.
+    from ainote.agents.graph.dingtalk_runtime import ensure_user_tools
+
+    await ensure_user_tools(user_id)
+    return await pipeline.run(state, runtime)
+
+
+def make_agent_node(pipeline: Pipeline | None = None):
+    """Build the LangGraph ``agent`` node bound to a specific pipeline.
+
+    ``pipeline=None`` (default) binds the shared singleton — the production
+    behavior. Passing a pipeline lets tests / the container inject a fake or
+    customized chain without patching module globals.
+    """
+    if pipeline is None:
+        pipeline = get_pipeline()
+
+    async def node(
+        state: AgentState,
+        runtime: Runtime[Configuration],
+    ) -> dict:
+        return await _run_agent(state, runtime, pipeline)
+
+    return node
 
 
 # ======================================================================
@@ -85,13 +147,7 @@ async def agent_node(
     the per-user deferred names → ToolBinding binds the per-user tools → LLM →
     ScopedToolNode executes against the cached per-user ToolNode.
     """
-    user_id = state.get("user_id") or runtime.context.user_id
-    # Lazy import: builder → nodes → dingtalk_runtime → builder would be a
-    # module-load cycle; dingtalk_runtime pulls in builder at import time.
-    from ainote.agents.graph.dingtalk_runtime import ensure_user_tools
-
-    await ensure_user_tools(user_id)
-    return await _agent_pipeline.run(state, runtime)
+    return await _run_agent(state, runtime, get_pipeline())
 
 
 # ======================================================================

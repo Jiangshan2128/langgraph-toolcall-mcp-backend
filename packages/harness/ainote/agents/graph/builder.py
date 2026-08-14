@@ -21,7 +21,7 @@ from langgraph.store.memory import InMemoryStore
 
 from ainote.agents.models import Configuration
 from ainote.config.settings import settings
-from ainote.agents.graph.nodes import agent_node, hitl_node
+from ainote.agents.graph.nodes import hitl_node, make_agent_node
 from ainote.agents.graph.routing import route_after_agent, route_after_tools, route_start
 from ainote.agents.graph.scoped_tool_node import ScopedToolNode
 from ainote.agents.graph.state import AgentState
@@ -119,12 +119,16 @@ def create_runtime():
         return InMemoryStore(), MemorySaver(), None
 
 
-def build_graph(*, store, checkpointer):
+def build_graph(*, store, checkpointer, pipeline=None):
     """Compile the agent graph bound to the given store + checkpointer.
 
     Factored as a pure function (previously it read module globals) so the
     graph can be compiled once at startup by the container and is trivially
     recompilable in tests with an in-memory store.
+
+    ``pipeline`` — optional ``Pipeline`` for the agent node. ``None`` uses the
+    shared lazy singleton (production default); passing one lets the container
+    or tests inject a custom pipeline.
 
     The graph includes:
     - START → route_start (conditional): routes to transcription if audio present
@@ -134,7 +138,7 @@ def build_graph(*, store, checkpointer):
     """
     b = StateGraph(AgentState, context_schema=Configuration)
     b.add_node("transcription", transcription_subgraph)
-    b.add_node("agent", agent_node)
+    b.add_node("agent", make_agent_node(pipeline))
     # Per-user-scoped ToolNode: holds ONLY the shared core tools; DingTalk MCP
     # tools are resolved per user at invocation (see scoped_tool_node.py).
     b.add_node("tools", ScopedToolNode(ALL_TOOLS))
