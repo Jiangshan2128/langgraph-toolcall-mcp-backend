@@ -3,17 +3,23 @@
 The pipeline is an internal detail of ``agent_node`` (not exposed through
 ``build_graph``). These tests cover factory purity (``create_pipeline``),
 singleton reuse (``get_pipeline``), and the two injection seams inside
-``nodes.py``: patching ``get_pipeline`` or setting ``nodes._pipeline``.
+``agent_node`` (``nodes/agent_node.py``): patching ``get_pipeline`` or
+setting the module's ``_pipeline`` holder.
+
+The module is fetched via ``importlib.import_module`` rather than
+``import ... as`` because ``nodes/__init__.py`` re-exports ``agent_node``
+(the function), which would shadow the submodule in a plain ``import``.
 """
 
 from __future__ import annotations
 
+import importlib
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 from langchain_core.messages import AIMessage
 
-from ainote.agents.graph import nodes
+agent = importlib.import_module("ainote.agents.graph.nodes.agent_node")
 
 
 class _FakePipeline:
@@ -53,17 +59,17 @@ def _patch_ensure_user_tools(monkeypatch) -> AsyncMock:
 
 def test_create_pipeline_returns_fresh_instances():
     """Factory is pure: each call builds an independent pipeline."""
-    p1 = nodes.create_pipeline()
-    p2 = nodes.create_pipeline()
-    assert isinstance(p1, nodes.Pipeline)
+    p1 = agent.create_pipeline()
+    p2 = agent.create_pipeline()
+    assert isinstance(p1, agent.Pipeline)
     assert p1 is not p2
 
 
 def test_get_pipeline_reuses_one_instance():
     """Shared pipeline is built lazily and reused across calls."""
-    p1 = nodes.get_pipeline()
-    p2 = nodes.get_pipeline()
-    assert isinstance(p1, nodes.Pipeline)
+    p1 = agent.get_pipeline()
+    p2 = agent.get_pipeline()
+    assert isinstance(p1, agent.Pipeline)
     assert p1 is p2
 
 
@@ -75,10 +81,10 @@ def test_get_pipeline_reuses_one_instance():
 async def test_agent_node_uses_shared_pipeline(monkeypatch):
     """Patching ``get_pipeline`` swaps what ``agent_node`` runs."""
     fake = _FakePipeline()
-    monkeypatch.setattr(nodes, "get_pipeline", lambda: fake)
+    monkeypatch.setattr(agent, "get_pipeline", lambda: fake)
     ensured = _patch_ensure_user_tools(monkeypatch)
 
-    result = await nodes.agent_node(_make_state(), _make_runtime())
+    result = await agent.agent_node(_make_state(), _make_runtime())
 
     assert result == {"messages": [AIMessage(content="ok")]}
     ensured.assert_awaited_once_with("test-user")
@@ -86,11 +92,11 @@ async def test_agent_node_uses_shared_pipeline(monkeypatch):
 
 
 async def test_agent_node_uses_injected_holder_pipeline(monkeypatch):
-    """Setting ``nodes._pipeline`` directly is honored and restored safely."""
+    """Setting ``agent_node._pipeline`` directly is honored and restored safely."""
     fake = _FakePipeline()
-    monkeypatch.setattr(nodes, "_pipeline", fake)
+    monkeypatch.setattr(agent, "_pipeline", fake)
     _patch_ensure_user_tools(monkeypatch)
 
-    await nodes.agent_node(_make_state(), _make_runtime())
+    await agent.agent_node(_make_state(), _make_runtime())
 
     assert len(fake.runs) == 1

@@ -6,16 +6,16 @@ composes them via the Russian-doll pattern so cross-cutting concerns are
 separated from the core LLM invocation.
 """
 
-from ainote.agents.graph.middleware.base import (
+from ainote.agents.graph.nodes.middleware.base import (
     Middleware,
     MiddlewareContext,
     NodeHandler,
     Pipeline,
 )
-from ainote.agents.graph.middleware.error_handler import ErrorHandlingMiddleware
-from ainote.agents.graph.middleware.memory_load import MemoryLoadMiddleware
-from ainote.agents.graph.middleware.system_prompt import SystemPromptMiddleware
-from ainote.agents.graph.middleware.tool_binding import ToolBindingMiddleware
+from ainote.agents.graph.nodes.middleware.error_handler import ErrorHandlingMiddleware
+from ainote.agents.graph.nodes.middleware.memory_load import MemoryLoadMiddleware
+from ainote.agents.graph.nodes.middleware.system_prompt import SystemPromptMiddleware
+from ainote.agents.graph.nodes.middleware.tool_binding import ToolBindingMiddleware
 
 __all__ = [
     "ErrorHandlingMiddleware",

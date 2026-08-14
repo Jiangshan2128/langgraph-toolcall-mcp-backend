@@ -75,17 +75,20 @@ Key capabilities:
 │   │       ├── __init__.py              <- Lazy re-exports (avoid circular imports)
 │   │       ├── builder.py               <- Pure factories: create_runtime(), build_graph() (no import-time side effects)
 │   │       ├── dingtalk_runtime.py      <- Per-user DingTalk MCP runtime registry (class owning injected store)
-│   │       ├── nodes.py                 <- agent_node (middleware pipeline), hitl_node (interrupt)
-│   │       ├── routing.py               <- Conditional edges: route_start, route_after_agent, route_after_tools
 │   │       ├── state.py                 <- AgentState (messages, user_id, metadata, audio)
-│   │       ├── thread.py                <- Per-user thread_id resolution with time-based rollover
 │   │       ├── tool_binder.py           <- get_model_with_tools(): core + promoted MCP tool binding
-│   │       └── middleware/
-│   │           ├── base.py              <- Middleware protocol, Pipeline (Russian-doll pattern)
-│   │           ├── error_handler.py     <- Exception -> user-friendly error message
-│   │           ├── memory_load.py       <- Load profile/tasks/instructions from store
-│   │           ├── system_prompt.py     <- Build system prompt with memories + deferred tools
-│   │           └── tool_binding.py      <- Bind ChatOpenAI with tool list via tool_binder
+│   │       └── nodes/
+│   │           ├── __init__.py          <- Re-exports agent_node, hitl_node
+│   │           ├── agent_node.py        <- agent_node (middleware pipeline) + pipeline factory/singleton
+│   │           ├── hitl_node.py         <- hitl_node (interrupt/approval)
+│   │           ├── routing.py           <- Conditional edges: route_start, route_after_agent, route_after_tools
+│   │           ├── scoped_tool_node.py  <- ScopedToolNode (per-user-scoped tool execution)
+│   │           └── middleware/
+│   │               ├── base.py          <- Middleware protocol, Pipeline (Russian-doll pattern)
+│   │               ├── error_handler.py <- Exception -> user-friendly error message
+│   │               ├── memory_load.py   <- Load profile/tasks/instructions from store
+│   │               ├── system_prompt.py <- Build system prompt with memories + deferred tools
+│   │               └── tool_binding.py  <- Bind ChatOpenAI with tool list via tool_binder
 │   │
 │   ├── tools/
 │   │   ├── __init__.py                 <- ALL_TOOLS list (8 core tools)
@@ -128,11 +131,13 @@ Key capabilities:
 |------|---------|
 | `builder.py` | Pure factories: `create_runtime()` → `(store, checkpointer, pool)`; `build_graph(store=, checkpointer=)`. No module globals / import-time side effects |
 | `dingtalk_runtime.py` | `DingTalkRuntime` class owning the injected store + per-user registry; module-level `configure_runtime()`/`get_runtime()` pointer for graph internals |
-| `nodes.py` | Middleware-pipeline agent node, HITL node with interrupt/approval logic |
-| `routing.py` | Conditional edges: transcription -> agent -> tools -> HITL -> END |
 | `state.py` | AgentState definition (messages, user_id, metadata, audio) |
-| `thread.py` | Per-user thread_id resolution with 5-minute idle rollover |
 | `tool_binder.py` | `get_model_with_tools()`: selects core + promoted MCP tools to bind to LLM |
+| `nodes/agent_node.py` | `agent_node` (middleware pipeline) + pipeline factory / lazy singleton |
+| `nodes/hitl_node.py` | `hitl_node` with interrupt/approval logic |
+| `nodes/routing.py` | Conditional edges: transcription -> agent -> tools -> HITL -> END |
+| `nodes/scoped_tool_node.py` | `ScopedToolNode`: per-user tool routing at the tools node |
+| `nodes/middleware/` | Agent-node middleware pipeline (see section 2) |
 
 The lifespan-managed DI container (`app/common/container.py`) calls the factories
 once at startup and exposes the results on `app.state.app_context`; request
@@ -144,7 +149,7 @@ and handlers declare `svc: ChatServiceDep`
 is fully in the service layer. Graph-internal call sites run outside request
 scope and use the `dingtalk_runtime` module-level pointer instead.
 
-### 2. Agent Middleware Pipeline (`agents/graph/middleware/`)
+### 2. Agent Middleware Pipeline (`agents/graph/nodes/middleware/`)
 
 The agent node uses a Russian-doll middleware pipeline for separation of concerns:
 
@@ -237,7 +242,7 @@ GROQ_API_KEY=your_key
 
 1. Tool should return proposals JSON (not write to store directly)
 2. Add routing logic in `route_after_tools()` in `routing.py`
-3. Add parsing logic in `_parse_task_proposals()` in `nodes.py`
+3. Add parsing logic in `_parse_task_proposals()` in `nodes/hitl_node.py`
 4. Add summary builder in `build_hitl_summary()` in `debug_utils.py`
 
 ### Debug Printing

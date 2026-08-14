@@ -11,7 +11,7 @@ from __future__ import annotations
 import logging
 
 from ainote.agents.models import Configuration
-from ainote.agents.graph.middleware.base import MiddlewareContext, NodeHandler
+from ainote.agents.graph.nodes.middleware.base import MiddlewareContext, NodeHandler
 from ainote.agents.graph.state import AgentState
 from langchain_core.messages import AIMessage
 from langgraph.runtime import Runtime

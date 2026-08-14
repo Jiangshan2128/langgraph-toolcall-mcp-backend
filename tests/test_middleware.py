@@ -8,11 +8,11 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage
 
-from ainote.agents.graph.middleware.base import MiddlewareContext, Pipeline
-from ainote.agents.graph.middleware.error_handler import ErrorHandlingMiddleware
-from ainote.agents.graph.middleware.memory_load import MemoryLoadMiddleware, StoreAccessor
-from ainote.agents.graph.middleware.system_prompt import SystemPromptMiddleware
-from ainote.agents.graph.middleware.tool_binding import ToolBindingMiddleware
+from ainote.agents.graph.nodes.middleware.base import MiddlewareContext, Pipeline
+from ainote.agents.graph.nodes.middleware.error_handler import ErrorHandlingMiddleware
+from ainote.agents.graph.nodes.middleware.memory_load import MemoryLoadMiddleware, StoreAccessor
+from ainote.agents.graph.nodes.middleware.system_prompt import SystemPromptMiddleware
+from ainote.agents.graph.nodes.middleware.tool_binding import ToolBindingMiddleware
 
 
 # ======================================================================
@@ -489,7 +489,7 @@ class TestErrorHandlingMiddleware:
 class TestFullPipelineIntegration:
     async def test_end_to_end_data_flow(self):
         """All 4 middlewares + core handler produce correct result."""
-        from ainote.agents.graph.middleware.memory_load import _RealStoreAccessor
+        from ainote.agents.graph.nodes.middleware.memory_load import _RealStoreAccessor
 
         # Use real store accessor but mock the store to return canned data
         real_accessor = _RealStoreAccessor()
