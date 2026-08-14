@@ -1,7 +1,7 @@
 #!/usr/bin/env pwsh
 <#
 .SYNOPSIS
-    Start the AI Note Backend server.
+    Start the Banana Todo List Backend server.
 .DESCRIPTION
     Starts uvicorn with the FastAPI app.  Activates .venv if present.
 .PARAMETER Port
@@ -32,7 +32,7 @@ if (Test-Path $Venv) {
 
 # ── Start uvicorn ─────────────────────────────────────────────────
 Set-Location $ProjectRoot
-Write-Host "🚀 Starting AI Note Backend on http://${Host}:${Port}"
+Write-Host "🚀 Starting Banana Todo List Backend on http://${Host}:${Port}"
 Write-Host "   Root: $ProjectRoot"
 Write-Host ""
 

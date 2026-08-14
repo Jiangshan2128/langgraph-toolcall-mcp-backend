@@ -20,7 +20,7 @@ def _reduce_promoted(
 
 
 class AgentState(MessagesState, total=False):
-    """Graph state for the AI Note agent.
+    """Graph state for the Banana Todo List agent.
 
     In addition to the message list, the state carries runtime context that
     should be checkpointed together with the conversation.

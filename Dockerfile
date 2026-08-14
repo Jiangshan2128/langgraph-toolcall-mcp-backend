@@ -1,4 +1,4 @@
-# AI Note Backend — Dockerfile for WeChat CloudBase (微信云托管)
+# Banana Todo List Backend — Dockerfile for WeChat CloudBase (微信云托管)
 #
 # 运行形态（容器内必须满足）：
 #   - FastAPI (uvicorn) 监听 80 端口（CloudBase 强制 80）

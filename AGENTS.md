@@ -1,8 +1,8 @@
-# AI Note Backend - AGENTS.md
+# Banana Todo List Backend - AGENTS.md
 
 ## Project Overview
 
-AI Note Backend is a FastAPI-based agent service with a two-layer architecture:
+Banana Todo List Backend is a FastAPI-based agent service with a two-layer architecture:
 
 ```
 app/                          <- Web application layer (FastAPI)

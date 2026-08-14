@@ -82,8 +82,8 @@ git push -u origin <branch>
 2. **写 UTF-8 payload 文件**（用 Write 工具写 `.claude/tmp/openclaw-bugfix-notify.json`，Write 输出天然 UTF-8）。`message` 里**同时嵌入**修复内容和 PR 链接，措辞写成「请原样转发」以防 agent 改写：
 ```json
 {
-  "message": "请原样转发这条 bugfix 通知：\n【AI Note bugfix 完成】#<issue>: <issue 标题>\n修复内容: <改动摘要>\nPR: <PR html_url>",
-  "name": "AINote-bugfix",
+  "message": "请原样转发这条 bugfix 通知：\n【Banana Todo List bugfix 完成】#<issue>: <issue 标题>\n修复内容: <改动摘要>\nPR: <PR html_url>",
+  "name": "BananaTodoList-bugfix",
   "channel": "openclaw-weixin",
   "to": "o9cq800xaFLWUCAxmzf_YhQ5uxsw@im.wechat",
   "deliver": true

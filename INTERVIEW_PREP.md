@@ -1,4 +1,4 @@
-# AI Note Backend — 面试亮点速查手册（大连版）
+# Banana Todo List Backend — 面试亮点速查手册（大连版）
 
 > 依据 2026-08 大连地区 Agent / AI 岗位招聘简章实测优化
 > 目标岗位：Agent 开发 / AI 产品经理
