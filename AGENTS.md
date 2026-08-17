@@ -74,6 +74,7 @@ Key capabilities:
 │   │   └── graph/
 │   │       ├── __init__.py              <- Lazy re-exports (avoid circular imports)
 │   │       ├── builder.py               <- Pure factories: create_runtime(), build_graph() (no import-time side effects)
+│   │       ├── fault_tolerance.py       <- Graph-level retry/timeout/error-handler config (retry_on, RETRY_POLICY, graph_error_handler)
 │   │       ├── dingtalk_runtime.py      <- Per-user DingTalk MCP runtime registry (class owning injected store)
 │   │       ├── state.py                 <- AgentState (messages, user_id, metadata, audio)
 │   │       ├── tool_binder.py           <- get_model_with_tools(): core + promoted MCP tool binding
@@ -85,7 +86,6 @@ Key capabilities:
 │   │           ├── scoped_tool_node.py  <- ScopedToolNode (per-user-scoped tool execution)
 │   │           └── middleware/
 │   │               ├── base.py          <- Middleware protocol, Pipeline (Russian-doll pattern)
-│   │               ├── error_handler.py <- Exception -> user-friendly error message
 │   │               ├── memory_load.py   <- Load profile/tasks/instructions from store
 │   │               ├── system_prompt.py <- Build system prompt with memories + deferred tools
 │   │               └── tool_binding.py  <- Bind ChatOpenAI with tool list via tool_binder
@@ -151,14 +151,15 @@ scope and use the `dingtalk_runtime` module-level pointer instead.
 
 ### 2. Agent Middleware Pipeline (`agents/graph/nodes/middleware/`)
 
-The agent node uses a Russian-doll middleware pipeline for separation of concerns:
+The agent node uses a Russian-doll middleware pipeline for separation of concerns.
+The middlewares are pure "prepare" layers — fault tolerance (retry/timeout/error
+handling) lives at the graph level, not in the pipeline:
 
 ```
-ErrorHandlingMiddleware     <- outermost: catch everything
-  └── MemoryLoadMiddleware   <- load profile/tasks/instructions from store
-      └── SystemPromptMiddleware  <- build system prompt from memories
-          └── ToolBindingMiddleware  <- bind tools to ChatOpenAI
-              └── core_handler  <- LLM invocation
+MemoryLoadMiddleware        <- load profile/tasks/instructions from store
+  └── SystemPromptMiddleware  <- build system prompt from memories
+      └── ToolBindingMiddleware  <- bind tools to ChatOpenAI
+          └── core_handler  <- LLM invocation
 ```
 
 ### 3. Tools (`packages/harness/ainote/tools/`)
@@ -206,7 +207,40 @@ ErrorHandlingMiddleware     <- outermost: catch everything
 
 Core + promoted selection is done inside `get_model_with_tools()` — there is no separate router module.
 
-### 6. Configuration
+### 6. Fault Tolerance (`agents/graph/fault_tolerance.py`)
+
+LangGraph-level fault tolerance (needs `langgraph>=1.2`; project locks 1.2.2), configured
+once in `builder.py::build_graph`:
+
+- **Retries** — `set_node_defaults(retry_policy=RetryPolicy(max_attempts=3, retry_on=retry_on))`
+  re-runs a failed node on transient errors with exponential backoff. The custom
+  `retry_on` extends `default_retry_on`: it additionally retries `TimeoutError`
+  (an OSError subclass the default excludes) and makes OpenAI/Groq-style
+  `APIStatusError` status-aware (retry only 429/5xx; 4xx are fatal).
+- **Timeouts** — per-node `TimeoutPolicy` (async nodes only): `agent` 300s/120s,
+  `tools` 240s/90s, `transcription` 600s/180s. `idle_timeout` resets on progress
+  signals (LLM tokens, tool callbacks), so long but productive work survives.
+- **Error handling** — a shared `graph_error_handler` runs when a node raises a
+  *non-retryable* error (immediately — no retries are spent) or exhausts its
+  retries, and returns a friendly user message (logged server-side, never leaks
+  exception detail) instead of bubbling a 500 to the HTTP layer. It
+  distinguishes fatal model bad-requests (400 / `BadRequestError` →
+  provider-specific apology) from generic failures (generic apology).
+
+There is **no `ErrorHandlingMiddleware` in the agent-node pipeline** anymore:
+all error handling lives at the graph level so there is a single fault-tolerance
+path. The middlewares (`MemoryLoad` / `SystemPrompt` / `ToolBinding`) are pure
+"prepare" layers — any exception they raise propagates out of `agent_node` to the
+graph runtime, where `retry_on` decides retry-vs-fatal and `graph_error_handler`
+produces the final user message.
+
+Notes: `hitl_node`'s `interrupt()` bypasses retry/timeout/error-handler, so the
+defaults are safe there. Tool *logic* errors never reach node-level retry
+(`ToolNode.handle_tool_errors=True` feeds them back to the LLM). Defaults set on
+the parent graph are NOT inherited by the transcription subgraph — the parent
+`transcription` node wraps the whole subgraph run.
+
+### 7. Configuration
 
 **Environment Variables (`.env`):**
 ```env

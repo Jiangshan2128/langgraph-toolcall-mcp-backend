@@ -8,7 +8,6 @@ Usage::
 
     pipeline = Pipeline(
         middlewares=[
-            ErrorHandlingMiddleware(),
             MemoryLoadMiddleware(),
             SystemPromptMiddleware(),
             ToolBindingMiddleware(),
