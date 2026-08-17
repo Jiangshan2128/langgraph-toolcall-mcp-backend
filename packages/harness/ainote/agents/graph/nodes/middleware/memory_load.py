@@ -64,8 +64,8 @@ class MemoryLoadMiddleware:
     Reads ``user_id`` from ``state`` (with fallback to ``runtime.context``)
     and loads all three memory namespaces into the middleware context dict.
 
-    On failure: lets the exception propagate (caught by
-    ``ErrorHandlingMiddleware`` if present, otherwise by the graph runtime).
+    On failure: lets the exception propagate to the graph runtime, whose
+    ``retry_policy`` / ``error_handler`` handle it (see ``fault_tolerance.py``).
     """
 
     def __init__(self, store_accessor: StoreAccessor | None = None) -> None:
