@@ -55,7 +55,7 @@ model_providers:
   # 不会发送 extra_body。
   - name: glm
     provider: openai
-    model: glm-5.1
+    model: glm-4.7-flash
     base_url: https://open.bigmodel.cn/api/paas/v4/
     api_key_env: GLM_API_KEY
     temperature: 0.0
