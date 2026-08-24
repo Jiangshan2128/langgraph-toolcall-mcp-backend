@@ -26,9 +26,8 @@ construction) plus the in-memory per-user registry. The container constructs
 one instance at startup and points the module-level ``configure_runtime``
 accessor at it. Graph-internal call sites (nodes / middleware / binder /
 ScopedToolNode) keep calling the module-level functions below, which delegate
-to the configured instance — the same "documented indirection to a
-lifecycle-managed object" pattern as DeerFlow's ``get_local_provider``. This
-removes the old ``builder.store`` module-global reads entirely.
+to the configured instance — the documented indirection to a lifecycle-managed
+object pattern. This removes the old ``builder.store`` module-global reads entirely.
 
 Single-worker deployment (``--workers 1``), so a per-instance ``asyncio.Lock``
 plus a couple of per-instance dicts is enough.

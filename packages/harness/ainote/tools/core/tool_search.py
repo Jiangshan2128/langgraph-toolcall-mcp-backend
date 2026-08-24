@@ -7,8 +7,6 @@ their full schemas before they can be invoked.
 
 Once promoted, the tool schemas are included in subsequent LLM bindings
 via graph state (``promoted_tools``).
-
-Reference: DeerFlow's ``deerflow.tools.builtins.tool_search``
 """
 
 from __future__ import annotations

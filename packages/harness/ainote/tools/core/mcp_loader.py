@@ -41,9 +41,9 @@ from langchain_core.tools import BaseTool
 logger = logging.getLogger(__name__)
 
 # Path resolution priority:
-#   1. DEER_FLOW_MCP_SERVERS_PATH env var (legacy compatibility)
+#   1. MCP_SERVERS_PATH env var
 #   2. <project_root>/mcp_servers.json
-#   3. <project_root>/extensions_config.json (deer-flow compat)
+#   3. <project_root>/extensions_config.json
 _MCP_CONFIG_NAMES = ("mcp_servers.json", "extensions_config.json")
 
 
