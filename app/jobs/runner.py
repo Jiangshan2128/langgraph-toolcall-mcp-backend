@@ -29,8 +29,8 @@ from fastapi import HTTPException
 from langchain_core.messages import HumanMessage
 from langgraph.types import Command
 
-from ainote.agents.memory import get_tasks
-from ainote.agents.models import Configuration
+from ainote.agents.graph.memory import get_tasks
+from ainote.agents.graph.model.model import Configuration
 from app.chat.service import _last_ai_content
 from app.chat.thread import resolve_thread_id
 from app.common.content_safety import check_text_safety, filter_risky_reply

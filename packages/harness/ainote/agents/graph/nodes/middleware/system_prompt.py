@@ -14,10 +14,10 @@ from __future__ import annotations
 import logging
 from typing import Callable
 
-from ainote.agents.models import Configuration
+from ainote.agents.graph.model.model import Configuration
 from ainote.agents.graph.nodes.middleware.base import MiddlewareContext, NodeHandler
 from ainote.agents.graph.state import AgentState
-from ainote.tools.tool_search import DeferredToolSetup
+from ainote.tools.core.tool_search import DeferredToolSetup
 from langgraph.runtime import Runtime
 
 logger = logging.getLogger(__name__)
@@ -35,7 +35,7 @@ def _default_deferred_getter(user_id: str) -> DeferredToolSetup | None:
 
 
 def _default_template() -> str:
-    from ainote.agents.prompts import MODEL_SYSTEM_MESSAGE
+    from ainote.agents.graph.prompts import MODEL_SYSTEM_MESSAGE
 
     return MODEL_SYSTEM_MESSAGE
 
@@ -72,7 +72,7 @@ class SystemPromptMiddleware:
         context: MiddlewareContext,
         next_handler: NodeHandler,
     ) -> dict:
-        from ainote.tools.tool_search import get_deferred_tools_prompt_section
+        from ainote.tools.core.tool_search import get_deferred_tools_prompt_section
 
         profile = context.get("profile")
         tasks: list[dict] = context.get("tasks", [])
@@ -92,7 +92,7 @@ class SystemPromptMiddleware:
         profile = context.get("profile") or {}
         if profile:
             profile = dict(profile)
-            from ainote.agents.memory import get_dingtalk_token
+            from ainote.agents.graph.memory import get_dingtalk_token
 
             token = get_dingtalk_token(runtime.store, user_id)
             # isinstance guard: tests pass MagicMock stores; only inject a real value.

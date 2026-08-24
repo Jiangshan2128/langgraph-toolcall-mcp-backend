@@ -3,7 +3,7 @@ from functools import lru_cache
 
 from langchain_core.language_models import BaseChatModel
 
-from ainote.config.model_factory import create_model_with_failover
+from ainote.agents.graph.model.model_factory import create_model_with_failover
 
 
 @dataclass

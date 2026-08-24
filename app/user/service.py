@@ -18,7 +18,7 @@ import logging
 
 from pydantic import ValidationError
 
-from ainote.agents.memory import delete_all_user_data, get_profile, put_profile
+from ainote.agents.graph.memory import delete_all_user_data, get_profile, put_profile
 from ainote.config.auth_config import get_auth_config
 from ainote.tools.core.memory import Profile
 from app.auth.wechat_service import _gotrue_admin_delete

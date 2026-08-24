@@ -11,10 +11,10 @@ from langgraph.store.base import BaseStore
 from pydantic import BaseModel, Field, field_validator
 from trustcall import create_extractor
 
-from ainote.agents.models import get_model
-from ainote.agents.prompts import CREATE_INSTRUCTIONS, TRUSTCALL_INSTRUCTION
+from ainote.agents.graph.model.model import get_model
+from ainote.agents.graph.prompts import CREATE_INSTRUCTIONS, TRUSTCALL_INSTRUCTION
 from ainote.agents.graph.state import AgentState
-from ainote.agents.memory import (
+from ainote.agents.graph.memory import (
     get_instructions,
     put_instructions,
     put_profile,

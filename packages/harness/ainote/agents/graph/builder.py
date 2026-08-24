@@ -19,7 +19,7 @@ from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import START, StateGraph
 from langgraph.store.memory import InMemoryStore
 
-from ainote.agents.models import Configuration
+from ainote.agents.graph.model.model import Configuration
 from ainote.config.settings import settings
 from ainote.agents.graph.fault_tolerance import (
     AGENT_TIMEOUT,

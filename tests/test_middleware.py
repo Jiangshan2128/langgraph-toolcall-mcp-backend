@@ -328,7 +328,7 @@ class TestSystemPromptMiddleware:
         """When the user has a stored DingTalk token with union_id, it is injected
         into the user profile so the LLM can call DingTalk tools directly."""
         from langgraph.store.memory import InMemoryStore
-        from ainote.agents.memory import put_dingtalk_token
+        from ainote.agents.graph.memory import put_dingtalk_token
 
         store = InMemoryStore()
         put_dingtalk_token(store, "test-user", {"access_token": "AT", "union_id": "uni-123"})

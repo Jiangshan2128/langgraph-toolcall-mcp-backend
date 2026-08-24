@@ -22,9 +22,9 @@ from ainote.agents.graph.dingtalk_runtime import (
     get_user_tool_node,
     mark_user_connected,
 )
-from ainote.agents.memory import get_dingtalk_config, put_dingtalk_config
+from ainote.agents.graph.memory import get_dingtalk_config, put_dingtalk_config
 from ainote.tools import ALL_TOOLS
-from ainote.tools.tool_search import MCP_TOOL_NAMES
+from ainote.tools.core.tool_search import MCP_TOOL_NAMES
 
 CREDS = {"client_id": "cid", "client_secret": "sec"}
 

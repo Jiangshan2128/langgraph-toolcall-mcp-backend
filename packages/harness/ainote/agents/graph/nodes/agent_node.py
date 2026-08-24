@@ -3,7 +3,7 @@ import logging
 from langchain_core.messages import SystemMessage
 from langgraph.runtime import Runtime
 
-from ainote.agents.models import Configuration
+from ainote.agents.graph.model.model import Configuration
 from ainote.agents.graph.nodes.middleware import (
     MemoryLoadMiddleware,
     Pipeline,
