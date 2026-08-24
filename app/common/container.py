@@ -5,7 +5,7 @@ compiled graph, and the DingTalk runtime registry — are created exactly once
 inside the FastAPI lifespan and exposed on ``app.state.app_context``. Request
 handlers resolve them via the ``Depends`` getters in ``app/common/dependencies.py``.
 
-Why this shape (DeerFlow-aligned, per the interview-prep refactor):
+Why this shape:
 - No ``import``-time side effects: importing a module never opens a DB pool,
   compiles a graph, or draws graph.png.
 - No service-locator reads (``builder.store`` scattered across 8+ modules):
@@ -17,8 +17,8 @@ Graph-internal code (nodes / middleware / binder / ScopedToolNode) executes
 OUTSIDE request scope, so it cannot use ``Depends``. Those call sites keep
 calling the module-level functions of ``ainote.agents.graph.dingtalk_runtime``,
 which delegate to the ``DingTalkRuntime`` instance installed here via
-``configure_runtime`` — the same "documented indirection to a lifecycle-managed
-object" pattern as DeerFlow's ``get_local_provider``.
+``configure_runtime`` — the documented indirection to a lifecycle-managed
+object pattern.
 """
 
 import logging

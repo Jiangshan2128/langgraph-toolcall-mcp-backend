@@ -1,4 +1,4 @@
-"""Focused config modules (deer-flow singleton pattern).
+"""Focused config modules with singleton getters.
 
 Each module exposes a pydantic-settings class and a ``get_*_config()``
 singleton getter. For backward compatibility, ``app.config.settings``

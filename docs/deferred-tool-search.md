@@ -8,7 +8,7 @@
 
 ## 方案：Deferred Tool Search
 
-参考 DeerFlow 项目的 deferred tool search 模式，**MCP 工具不 bind 给 LLM**，而是让 LLM 通过一个 `tool_search` 工具按需发现。
+**MCP 工具不 bind 给 LLM**，而是让 LLM 通过一个 `tool_search` 工具按需发现。
 
 ### 核心思想
 

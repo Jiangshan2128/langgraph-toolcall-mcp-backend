@@ -139,9 +139,8 @@ async def read_audio(file: Any | None) -> tuple[bytes | None, str | None]:
 #
 # The container (``app/common/container.py``) builds every long-lived
 # component in the FastAPI lifespan and stores it on ``app.state.app_context``.
-# These getters resolve it for the current request — the DeerFlow ``_require``
-# pattern. A 503 (not 500) is returned when the app is still starting up, so
-# callers can treat it as "try again shortly".
+# These getters resolve it for the current request. A 503 (not 500) is returned
+# when the app is still starting up, so callers can treat it as "try again shortly".
 
 
 def get_app_context(request: Request) -> AppContext:
