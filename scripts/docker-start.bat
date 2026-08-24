@@ -2,7 +2,7 @@
 setlocal enabledelayedexpansion
 
 REM ============================================================
-REM  AI Note Backend - Docker start script
+REM  Banana Todo List Backend - Docker start script
 REM  Usage: double-click, or run "docker-start.bat" from a terminal
 REM
 REM  Why this script exists:
@@ -19,8 +19,8 @@ set "CONTAINER=ainote-backend"
 set "PORT=8000"
 
 echo.
-echo [AI Note] Docker start script
-echo [AI Note] Project dir: %PROJECT_DIR%
+echo [Banana Todo List] Docker start script
+echo [Banana Todo List] Project dir: %PROJECT_DIR%
 echo.
 
 REM ---- 1. Check .env exists ----

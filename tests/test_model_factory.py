@@ -13,8 +13,8 @@ from langchain_deepseek import ChatDeepSeek
 from langchain_openai import ChatOpenAI
 from pydantic import ValidationError
 
-from ainote.config import model_factory
-from ainote.config.model_factory import (
+from ainote.agents.graph.model import model_factory
+from ainote.agents.graph.model.model_factory import (
     create_model,
     get_model_config_yaml,
     _reset_config_cache,
@@ -156,9 +156,9 @@ def test_legacy_fallback_deepseek(monkeypatch: pytest.MonkeyPatch):
 
 def test_get_model_is_single_business_entry():
     """get_model() is the only entry the business layer uses; it accepts name."""
-    from ainote.agents.models import get_model
+    from ainote.agents.graph.model.model import get_model
     from langchain_core.language_models import BaseChatModel
-    from ainote.config.model_factory import create_model
+    from ainote.agents.graph.model.model_factory import create_model
 
     get_model.cache_clear()
     # No name → active_model (deepseek-chat); named → that provider.
@@ -177,8 +177,8 @@ def test_get_model_is_single_business_entry():
 
 
 def test_failover_chain_builds(tmp_config):
-    from ainote.config.model_factory import create_model_with_failover
-    from ainote.config.model_failover import FailoverChatModel
+    from ainote.agents.graph.model.model_factory import create_model_with_failover
+    from ainote.agents.graph.model.model_failover import FailoverChatModel
 
     m = create_model_with_failover("deepseek-chat")
     assert isinstance(m, FailoverChatModel)
@@ -188,7 +188,7 @@ def test_failover_chain_builds(tmp_config):
 
 
 def test_no_fallback_returns_raw_model(tmp_config):
-    from ainote.config.model_factory import create_model_with_failover
+    from ainote.agents.graph.model.model_factory import create_model_with_failover
 
     m = create_model_with_failover("glm")
     assert isinstance(m, ChatOpenAI)  # glm has no fallback → raw model
@@ -206,8 +206,8 @@ def test_failover_bind_tools_and_invoke(tmp_config, monkeypatch):
     """Primary raises 503 → backup answers; both raw and bound paths."""
     from langchain_core.messages import AIMessage, HumanMessage
     from langchain_core.outputs import ChatGeneration, ChatResult
-    from ainote.config.model_factory import create_model_with_failover
-    from ainote.config.model_failover import FailoverChatModel
+    from ainote.agents.graph.model.model_factory import create_model_with_failover
+    from ainote.agents.graph.model.model_failover import FailoverChatModel
 
     primary = create_model("deepseek-chat")
     backup = create_model("glm")
@@ -259,8 +259,8 @@ def test_failover_bind_tools_and_invoke(tmp_config, monkeypatch):
 def test_non_transient_error_propagates(tmp_config, monkeypatch):
     """BadRequestError (400) must propagate — no fallback on permanent errors."""
     from langchain_core.messages import HumanMessage
-    from ainote.config.model_factory import create_model
-    from ainote.config.model_failover import FailoverChatModel
+    from ainote.agents.graph.model.model_factory import create_model
+    from ainote.agents.graph.model.model_failover import FailoverChatModel
 
     primary = create_model("deepseek-chat")
     backup = create_model("glm")

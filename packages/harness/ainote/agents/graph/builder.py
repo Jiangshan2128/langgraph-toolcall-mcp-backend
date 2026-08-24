@@ -19,11 +19,19 @@ from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import START, StateGraph
 from langgraph.store.memory import InMemoryStore
 
-from ainote.agents.models import Configuration
+from ainote.agents.graph.model.model import Configuration
 from ainote.config.settings import settings
-from ainote.agents.graph.nodes import agent_node, hitl_node
-from ainote.agents.graph.routing import route_after_agent, route_after_tools, route_start
-from ainote.agents.graph.scoped_tool_node import ScopedToolNode
+from ainote.agents.graph.fault_tolerance import (
+    AGENT_TIMEOUT,
+    RETRY_POLICY,
+    TOOLS_TIMEOUT,
+    TRANSCRIPTION_TIMEOUT,
+    graph_error_handler,
+)
+from ainote.agents.graph.nodes.agent_node import agent_node
+from ainote.agents.graph.nodes.hitl_node import hitl_node
+from ainote.agents.graph.nodes.routing import route_after_agent, route_after_tools, route_start
+from ainote.agents.graph.nodes.scoped_tool_node import ScopedToolNode
 from ainote.agents.graph.state import AgentState
 from ainote.tools import ALL_TOOLS
 from ainote.transcription.graph import transcription_subgraph
@@ -133,11 +141,26 @@ def build_graph(*, store, checkpointer):
     - tools: tool execution node
     """
     b = StateGraph(AgentState, context_schema=Configuration)
-    b.add_node("transcription", transcription_subgraph)
-    b.add_node("agent", agent_node)
+
+    # LangGraph-level fault tolerance (see fault_tolerance.py): every node gets
+    # the same retry policy (transient errors re-run with backoff) and a
+    # compensation handler that turns a retry-exhausted failure into a friendly
+    # user message instead of a 500. hitl_node's interrupt() bypasses both, so
+    # the defaults are safe there too. Timeouts are set per node below because
+    # they differ (transcription may legitimately run for minutes).
+    b.set_node_defaults(
+        retry_policy=RETRY_POLICY,
+        error_handler=graph_error_handler,
+    )
+
+    b.add_node("transcription", transcription_subgraph, timeout=TRANSCRIPTION_TIMEOUT)
+    b.add_node("agent", agent_node, timeout=AGENT_TIMEOUT)
     # Per-user-scoped ToolNode: holds ONLY the shared core tools; DingTalk MCP
     # tools are resolved per user at invocation (see scoped_tool_node.py).
-    b.add_node("tools", ScopedToolNode(ALL_TOOLS))
+    # The global retry_policy applies here too, but tool *logic* errors never
+    # reach it: ToolNode's handle_tool_errors=True feeds them back to the LLM.
+    # A node-level retry only fires on infra-level transient failures (rare).
+    b.add_node("tools", ScopedToolNode(ALL_TOOLS), timeout=TOOLS_TIMEOUT)
     b.add_node("hitl_node", hitl_node)
 
     # Conditional start routing: transcription if audio present, else directly to agent

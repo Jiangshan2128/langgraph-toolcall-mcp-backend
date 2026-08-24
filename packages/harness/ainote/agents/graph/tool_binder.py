@@ -12,7 +12,7 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.tools import BaseTool
 from langchain_core.utils.function_calling import convert_to_openai_function
 
-from ainote.agents.models import get_model
+from ainote.agents.graph.model.model import get_model
 from ainote.tools import ALL_TOOLS
 
 logger = logging.getLogger(__name__)

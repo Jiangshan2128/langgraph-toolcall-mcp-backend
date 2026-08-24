@@ -14,7 +14,7 @@ from langchain_core.messages import AIMessage
 from langchain_core.tools import tool
 from langgraph.prebuilt import ToolNode
 
-from ainote.agents.graph.scoped_tool_node import ScopedToolNode
+from ainote.agents.graph.nodes.scoped_tool_node import ScopedToolNode
 
 
 @tool

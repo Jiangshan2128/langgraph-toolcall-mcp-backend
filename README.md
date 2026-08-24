@@ -1,4 +1,4 @@
-# AI Note Backend
+# Banana Todo List Backend
 
 AI-powered todo list 应用的后端服务，也是一个用于学习 AI Agent 架构的实操项目。
 
@@ -41,14 +41,15 @@ Web 层与 Agent 层解耦，Agent 层可独立演进和测试。
 ### Middleware Pipeline（俄罗斯套娃模式）
 
 ```
-ErrorHandlingMiddleware     ← 最外层：捕获所有异常
-  └── MemoryLoadMiddleware  ← 从 store 加载 profile/tasks/instructions
-      └── SystemPromptMiddleware  ← 用记忆构建系统提示
-          └── ToolBindingMiddleware  ← 绑定工具到 ChatOpenAI
-              └── LLM 调用
+MemoryLoadMiddleware        ← 从 store 加载 profile/tasks/instructions
+  └── SystemPromptMiddleware  ← 用记忆构建系统提示
+      └── ToolBindingMiddleware  ← 绑定工具到 ChatOpenAI
+          └── LLM 调用
 ```
 
 每个 middleware 只处理一个关注点，通过 pipeline 组合，可独立测试和替换。
+容错（重试/超时/错误处理）不在此 pipeline 中，而是由图级
+`fault_tolerance.py`（`retry_policy` / `timeout` / `error_handler`）统一负责。
 
 ### Tool Binding 分层策略
 

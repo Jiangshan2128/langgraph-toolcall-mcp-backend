@@ -1,5 +1,5 @@
 ﻿# ============================================================
-# AI Note Backend — 打包微信云托管部署包 (cloudbase-deploy.zip)
+# Banana Todo List Backend — 打包微信云托管部署包 (cloudbase-deploy.zip)
 #
 # 用途:
 #   按 .dockerignore 的排除规则, 把当前工作区打成 CloudBase

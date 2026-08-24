@@ -8,11 +8,10 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage
 
-from ainote.agents.graph.middleware.base import MiddlewareContext, Pipeline
-from ainote.agents.graph.middleware.error_handler import ErrorHandlingMiddleware
-from ainote.agents.graph.middleware.memory_load import MemoryLoadMiddleware, StoreAccessor
-from ainote.agents.graph.middleware.system_prompt import SystemPromptMiddleware
-from ainote.agents.graph.middleware.tool_binding import ToolBindingMiddleware
+from ainote.agents.graph.nodes.middleware.base import MiddlewareContext, Pipeline
+from ainote.agents.graph.nodes.middleware.memory_load import MemoryLoadMiddleware, StoreAccessor
+from ainote.agents.graph.nodes.middleware.system_prompt import SystemPromptMiddleware
+from ainote.agents.graph.nodes.middleware.tool_binding import ToolBindingMiddleware
 
 
 # ======================================================================
@@ -329,7 +328,7 @@ class TestSystemPromptMiddleware:
         """When the user has a stored DingTalk token with union_id, it is injected
         into the user profile so the LLM can call DingTalk tools directly."""
         from langgraph.store.memory import InMemoryStore
-        from ainote.agents.memory import put_dingtalk_token
+        from ainote.agents.graph.memory import put_dingtalk_token
 
         store = InMemoryStore()
         put_dingtalk_token(store, "test-user", {"access_token": "AT", "union_id": "uni-123"})
@@ -424,64 +423,6 @@ class TestToolBindingMiddleware:
 
 
 # ======================================================================
-# ErrorHandlingMiddleware
-# ======================================================================
-
-
-class TestErrorHandlingMiddleware:
-    async def test_passes_through_on_success(self):
-        """Successful handler result passes through unchanged."""
-        mw = ErrorHandlingMiddleware()
-        result = await mw(_make_state(), _make_runtime(), {}, _noop_handler)
-        assert result == {"messages": [AIMessage(content="ok")]}
-
-    async def test_catches_bad_request_error(self):
-        """BadRequestError returns Chinese apology."""
-
-        async def failing_handler(state, runtime, context):
-            raise type("BadRequestError", (Exception,), {})()
-
-        mw = ErrorHandlingMiddleware()
-        result = await mw(_make_state(), _make_runtime(), {}, failing_handler)
-        messages = result["messages"]
-        assert len(messages) == 1
-        assert "抱歉" in messages[0].content
-        assert isinstance(messages[0], AIMessage)
-
-    async def test_catches_generic_exception(self):
-        """Generic exception returns English error message."""
-
-        async def failing_handler(state, runtime, context):
-            raise RuntimeError("Something broke")
-
-        mw = ErrorHandlingMiddleware()
-        result = await mw(_make_state(), _make_runtime(), {}, failing_handler)
-        messages = result["messages"]
-        assert len(messages) == 1
-        assert "Something broke" in messages[0].content
-        assert isinstance(messages[0], AIMessage)
-
-    async def test_catches_error_from_deep_in_chain(self):
-        """Error thrown by an inner middleware is caught."""
-
-        class ThrowingMiddleware:
-            async def __call__(self, state, runtime, context, next_handler):
-                return await next_handler(state, runtime, context)
-
-        async def failing_core(state, runtime, context):
-            raise ValueError("deep error")
-
-        pipeline = Pipeline(
-            middlewares=[ErrorHandlingMiddleware(), ThrowingMiddleware()],
-            core_handler=failing_core,
-        )
-        result = await pipeline.run(_make_state(), _make_runtime())
-        messages = result["messages"]
-        assert len(messages) == 1
-        assert "deep error" in messages[0].content
-
-
-# ======================================================================
 # Full pipeline integration
 # ======================================================================
 
@@ -489,7 +430,7 @@ class TestErrorHandlingMiddleware:
 class TestFullPipelineIntegration:
     async def test_end_to_end_data_flow(self):
         """All 4 middlewares + core handler produce correct result."""
-        from ainote.agents.graph.middleware.memory_load import _RealStoreAccessor
+        from ainote.agents.graph.nodes.middleware.memory_load import _RealStoreAccessor
 
         # Use real store accessor but mock the store to return canned data
         real_accessor = _RealStoreAccessor()
@@ -518,11 +459,17 @@ class TestFullPipelineIntegration:
                 context["model"] = model
                 return await next_handler(state, runtime, context)
 
+        # Inject a fake deferred-setup getter: the default one reaches the real
+        # DingTalk runtime, which is not configured in unit tests.
+        class FakeSetup:
+            deferred_names = frozenset()
+
         pipeline = Pipeline(
             middlewares=[
-                ErrorHandlingMiddleware(),
                 TestMemoryLoad(),
-                SystemPromptMiddleware(),
+                SystemPromptMiddleware(
+                    deferred_setup_getter=lambda user_id: FakeSetup()
+                ),
                 TestToolBinding(),
             ],
             core_handler=_noop_handler,  # We verify data flow, skip real LLM

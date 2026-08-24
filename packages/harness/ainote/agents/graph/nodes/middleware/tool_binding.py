@@ -11,8 +11,8 @@ from __future__ import annotations
 import logging
 from typing import Callable
 
-from ainote.agents.models import Configuration
-from ainote.agents.graph.middleware.base import MiddlewareContext, NodeHandler
+from ainote.agents.graph.model.model import Configuration
+from ainote.agents.graph.nodes.middleware.base import MiddlewareContext, NodeHandler
 from ainote.agents.graph.state import AgentState
 from langchain_openai import ChatOpenAI
 from langgraph.runtime import Runtime

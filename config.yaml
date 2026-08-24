@@ -1,5 +1,5 @@
 # ============================================================
-# AI Note Backend — LLM 模型配置 (model factory)
+# Banana Todo List Backend — LLM 模型配置 (model factory)
 # ============================================================
 # 结构说明：
 #   active_model    当前启用的模型名（必须是 model_providers 中某个 name）
@@ -55,7 +55,7 @@ model_providers:
   # 不会发送 extra_body。
   - name: glm
     provider: openai
-    model: glm-5.1
+    model: glm-4.7-flash
     base_url: https://open.bigmodel.cn/api/paas/v4/
     api_key_env: GLM_API_KEY
     temperature: 0.0

@@ -11,8 +11,8 @@ from __future__ import annotations
 import logging
 from typing import Any, Protocol
 
-from ainote.agents.models import Configuration
-from ainote.agents.graph.middleware.base import MiddlewareContext, NodeHandler
+from ainote.agents.graph.model.model import Configuration
+from ainote.agents.graph.nodes.middleware.base import MiddlewareContext, NodeHandler
 from ainote.agents.graph.state import AgentState
 from langgraph.runtime import Runtime
 
@@ -38,17 +38,17 @@ class _RealStoreAccessor:
     """Production implementation — delegates to ``app.store.memory``."""
 
     def get_profile(self, store: Any, user_id: str) -> dict | None:
-        from ainote.agents.memory import get_profile
+        from ainote.agents.graph.memory import get_profile
 
         return get_profile(store, user_id)
 
     def get_tasks(self, store: Any, user_id: str) -> list[dict]:
-        from ainote.agents.memory import get_tasks
+        from ainote.agents.graph.memory import get_tasks
 
         return get_tasks(store, user_id)
 
     def get_instructions(self, store: Any, user_id: str) -> dict | None:
-        from ainote.agents.memory import get_instructions
+        from ainote.agents.graph.memory import get_instructions
 
         return get_instructions(store, user_id)
 
@@ -64,8 +64,8 @@ class MemoryLoadMiddleware:
     Reads ``user_id`` from ``state`` (with fallback to ``runtime.context``)
     and loads all three memory namespaces into the middleware context dict.
 
-    On failure: lets the exception propagate (caught by
-    ``ErrorHandlingMiddleware`` if present, otherwise by the graph runtime).
+    On failure: lets the exception propagate to the graph runtime, whose
+    ``retry_policy`` / ``error_handler`` handle it (see ``fault_tolerance.py``).
     """
 
     def __init__(self, store_accessor: StoreAccessor | None = None) -> None:

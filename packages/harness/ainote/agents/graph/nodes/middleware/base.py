@@ -8,7 +8,6 @@ Usage::
 
     pipeline = Pipeline(
         middlewares=[
-            ErrorHandlingMiddleware(),
             MemoryLoadMiddleware(),
             SystemPromptMiddleware(),
             ToolBindingMiddleware(),
@@ -24,7 +23,7 @@ from __future__ import annotations
 
 from typing import Any, Awaitable, Callable, Protocol
 
-from ainote.agents.models import Configuration
+from ainote.agents.graph.model.model import Configuration
 from ainote.agents.graph.state import AgentState
 from langgraph.runtime import Runtime
 

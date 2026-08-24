@@ -1,8 +1,8 @@
-# AI Note Backend - AGENTS.md
+# Banana Todo List Backend - AGENTS.md
 
 ## Project Overview
 
-AI Note Backend is a FastAPI-based agent service with a two-layer architecture:
+Banana Todo List Backend is a FastAPI-based agent service with a two-layer architecture:
 
 ```
 app/                          <- Web application layer (FastAPI)
@@ -67,37 +67,45 @@ Key capabilities:
 │
 ├── packages/harness/ainote/              <- LLM/Agent core
 │   ├── agents/
-│   │   ├── models.py                    <- Configuration, get_model()
-│   │   ├── prompts.py                   <- System prompt, TrustCall instruction, etc.
-│   │   ├── memory.py                    <- Store access layer (profile, tasks, instructions)
 │   │   ├── debug_utils.py               <- HITL debug printing utilities
 │   │   └── graph/
 │   │       ├── __init__.py              <- Lazy re-exports (avoid circular imports)
+│   │       ├── prompts.py               <- System prompt, TrustCall instruction, etc.
+│   │       ├── memory.py                <- Store access layer (profile, tasks, instructions)
+│   │       ├── model/
+│   │       │   ├── model.py             <- Configuration, get_model() (config-driven, failover)
+│   │       │   ├── model_factory.py     <- config.yaml multi-provider factory (fallback chains)
+│   │       │   ├── model_failover.py    <- FailoverChatModel (transient-error failover)
+│   │       │   └── model_provider.py    <- ModelProvider/ModelConfigYAML pydantic models
 │   │       ├── builder.py               <- Pure factories: create_runtime(), build_graph() (no import-time side effects)
+│   │       ├── fault_tolerance.py       <- Graph-level retry/timeout/error-handler config (retry_on, RETRY_POLICY, graph_error_handler)
 │   │       ├── dingtalk_runtime.py      <- Per-user DingTalk MCP runtime registry (class owning injected store)
-│   │       ├── nodes.py                 <- agent_node (middleware pipeline), hitl_node (interrupt)
-│   │       ├── routing.py               <- Conditional edges: route_start, route_after_agent, route_after_tools
 │   │       ├── state.py                 <- AgentState (messages, user_id, metadata, audio)
-│   │       ├── thread.py                <- Per-user thread_id resolution with time-based rollover
 │   │       ├── tool_binder.py           <- get_model_with_tools(): core + promoted MCP tool binding
-│   │       └── middleware/
-│   │           ├── base.py              <- Middleware protocol, Pipeline (Russian-doll pattern)
-│   │           ├── error_handler.py     <- Exception -> user-friendly error message
-│   │           ├── memory_load.py       <- Load profile/tasks/instructions from store
-│   │           ├── system_prompt.py     <- Build system prompt with memories + deferred tools
-│   │           └── tool_binding.py      <- Bind ChatOpenAI with tool list via tool_binder
+│   │       └── nodes/
+│   │           ├── __init__.py          <- Re-exports agent_node, hitl_node
+│   │           ├── agent_node.py        <- agent_node (middleware pipeline) + pipeline factory/singleton
+│   │           ├── hitl_node.py         <- hitl_node (interrupt/approval)
+│   │           ├── routing.py           <- Conditional edges: route_start, route_after_agent, route_after_tools
+│   │           ├── scoped_tool_node.py  <- ScopedToolNode (per-user-scoped tool execution)
+│   │           └── middleware/
+│   │               ├── base.py          <- Middleware protocol, Pipeline (Russian-doll pattern)
+│   │               ├── memory_load.py   <- Load profile/tasks/instructions from store
+│   │               ├── system_prompt.py <- Build system prompt with memories + deferred tools
+│   │               └── tool_binding.py  <- Bind ChatOpenAI with tool list via tool_binder
 │   │
 │   ├── tools/
-│   │   ├── __init__.py                 <- ALL_TOOLS list (8 core tools)
-│   │   ├── mcp_loader.py               <- Load MCP server tools from mcp_servers.json
-│   │   ├── tool_search.py              <- Deferred DingTalk MCP tool search & promotion
+│   │   ├── __init__.py                 <- ALL_TOOLS list (9 core tools) + remove_tools_by_name
 │   │   ├── core/
 │   │   │   ├── memory.py               <- update_profile, update_tasks, update_instructions (TrustCall)
 │   │   │   │                             Also defines Profile & Task Pydantic models
-│   │   │   └── tasks.py                <- get_tasks, mark_task_done, update_task_priority, delete_task_by_title
+│   │   │   ├── tasks.py                <- get_tasks, mark_task_done, update_task_priority, delete_task_by_title
+│   │   │   ├── time.py                 <- get_current_time
+│   │   │   ├── mcp_loader.py           <- Load MCP server tools from mcp_servers.json
+│   │   │   └── tool_search.py          <- Deferred DingTalk MCP tool search & promotion
 │   │   └── community/
 │   │       ├── search.py               <- web_search (Tavily)
-│   │       └── __init__.py
+│   │       └── __init__.py             <- Re-exports web_search + load_mcp_tools
 │   │
 │   ├── config/
 │   │   ├── __init__.py                 <- Re-exports from focused config modules
@@ -127,12 +135,20 @@ Key capabilities:
 | File | Purpose |
 |------|---------|
 | `builder.py` | Pure factories: `create_runtime()` → `(store, checkpointer, pool)`; `build_graph(store=, checkpointer=)`. No module globals / import-time side effects |
+| `memory.py` | Store access layer: profile/tasks/instructions/dingtalk namespaces |
+| `prompts.py` | System prompt, TrustCall instruction, etc. |
+| `model/model.py` | `Configuration` (runtime config) + `get_model()` (config-driven, with failover) |
+| `model/model_factory.py` | config.yaml multi-provider factory: `create_model` / `create_model_with_failover`, provider registry, `fallback_to` chains (cycle-safe) |
+| `model/model_failover.py` | `FailoverChatModel`: transient-error failover over a model chain (retries 5xx/429/timeout; 4xx propagate) |
+| `model/model_provider.py` | `ModelProvider` / `ModelConfigYAML` pydantic models (incl. `fallback_to` cycle validation) |
 | `dingtalk_runtime.py` | `DingTalkRuntime` class owning the injected store + per-user registry; module-level `configure_runtime()`/`get_runtime()` pointer for graph internals |
-| `nodes.py` | Middleware-pipeline agent node, HITL node with interrupt/approval logic |
-| `routing.py` | Conditional edges: transcription -> agent -> tools -> HITL -> END |
 | `state.py` | AgentState definition (messages, user_id, metadata, audio) |
-| `thread.py` | Per-user thread_id resolution with 5-minute idle rollover |
 | `tool_binder.py` | `get_model_with_tools()`: selects core + promoted MCP tools to bind to LLM |
+| `nodes/agent_node.py` | `agent_node` (middleware pipeline) + pipeline factory / lazy singleton |
+| `nodes/hitl_node.py` | `hitl_node` with interrupt/approval logic |
+| `nodes/routing.py` | Conditional edges: transcription -> agent -> tools -> HITL -> END |
+| `nodes/scoped_tool_node.py` | `ScopedToolNode`: per-user tool routing at the tools node |
+| `nodes/middleware/` | Agent-node middleware pipeline (see section 2) |
 
 The lifespan-managed DI container (`app/common/container.py`) calls the factories
 once at startup and exposes the results on `app.state.app_context`; request
@@ -144,16 +160,17 @@ and handlers declare `svc: ChatServiceDep`
 is fully in the service layer. Graph-internal call sites run outside request
 scope and use the `dingtalk_runtime` module-level pointer instead.
 
-### 2. Agent Middleware Pipeline (`agents/graph/middleware/`)
+### 2. Agent Middleware Pipeline (`agents/graph/nodes/middleware/`)
 
-The agent node uses a Russian-doll middleware pipeline for separation of concerns:
+The agent node uses a Russian-doll middleware pipeline for separation of concerns.
+The middlewares are pure "prepare" layers — fault tolerance (retry/timeout/error
+handling) lives at the graph level, not in the pipeline:
 
 ```
-ErrorHandlingMiddleware     <- outermost: catch everything
-  └── MemoryLoadMiddleware   <- load profile/tasks/instructions from store
-      └── SystemPromptMiddleware  <- build system prompt from memories
-          └── ToolBindingMiddleware  <- bind tools to ChatOpenAI
-              └── core_handler  <- LLM invocation
+MemoryLoadMiddleware        <- load profile/tasks/instructions from store
+  └── SystemPromptMiddleware  <- build system prompt from memories
+      └── ToolBindingMiddleware  <- bind tools to ChatOpenAI
+          └── core_handler  <- LLM invocation
 ```
 
 ### 3. Tools (`packages/harness/ainote/tools/`)
@@ -201,7 +218,40 @@ ErrorHandlingMiddleware     <- outermost: catch everything
 
 Core + promoted selection is done inside `get_model_with_tools()` — there is no separate router module.
 
-### 6. Configuration
+### 6. Fault Tolerance (`agents/graph/fault_tolerance.py`)
+
+LangGraph-level fault tolerance (needs `langgraph>=1.2`; project locks 1.2.2), configured
+once in `builder.py::build_graph`:
+
+- **Retries** — `set_node_defaults(retry_policy=RetryPolicy(max_attempts=3, retry_on=retry_on))`
+  re-runs a failed node on transient errors with exponential backoff. The custom
+  `retry_on` extends `default_retry_on`: it additionally retries `TimeoutError`
+  (an OSError subclass the default excludes) and makes OpenAI/Groq-style
+  `APIStatusError` status-aware (retry only 429/5xx; 4xx are fatal).
+- **Timeouts** — per-node `TimeoutPolicy` (async nodes only): `agent` 300s/120s,
+  `tools` 240s/90s, `transcription` 600s/180s. `idle_timeout` resets on progress
+  signals (LLM tokens, tool callbacks), so long but productive work survives.
+- **Error handling** — a shared `graph_error_handler` runs when a node raises a
+  *non-retryable* error (immediately — no retries are spent) or exhausts its
+  retries, and returns a friendly user message (logged server-side, never leaks
+  exception detail) instead of bubbling a 500 to the HTTP layer. It
+  distinguishes fatal model bad-requests (400 / `BadRequestError` →
+  provider-specific apology) from generic failures (generic apology).
+
+There is **no `ErrorHandlingMiddleware` in the agent-node pipeline** anymore:
+all error handling lives at the graph level so there is a single fault-tolerance
+path. The middlewares (`MemoryLoad` / `SystemPrompt` / `ToolBinding`) are pure
+"prepare" layers — any exception they raise propagates out of `agent_node` to the
+graph runtime, where `retry_on` decides retry-vs-fatal and `graph_error_handler`
+produces the final user message.
+
+Notes: `hitl_node`'s `interrupt()` bypasses retry/timeout/error-handler, so the
+defaults are safe there. Tool *logic* errors never reach node-level retry
+(`ToolNode.handle_tool_errors=True` feeds them back to the LLM). Defaults set on
+the parent graph are NOT inherited by the transcription subgraph — the parent
+`transcription` node wraps the whole subgraph run.
+
+### 7. Configuration
 
 **Environment Variables (`.env`):**
 ```env
@@ -237,7 +287,7 @@ GROQ_API_KEY=your_key
 
 1. Tool should return proposals JSON (not write to store directly)
 2. Add routing logic in `route_after_tools()` in `routing.py`
-3. Add parsing logic in `_parse_task_proposals()` in `nodes.py`
+3. Add parsing logic in `_parse_task_proposals()` in `nodes/hitl_node.py`
 4. Add summary builder in `build_hitl_summary()` in `debug_utils.py`
 
 ### Debug Printing

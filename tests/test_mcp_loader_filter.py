@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from ainote.tools import mcp_loader
+from ainote.tools.core import mcp_loader
 
 
 @pytest.fixture
@@ -155,7 +155,7 @@ async def test_env_overrides_applied_last(fake_config, monkeypatch):
 @pytest.mark.asyncio
 async def test_register_false_skips_global_registration(fake_config, monkeypatch):
     """register=False must not touch the global MCP_TOOL_NAMES."""
-    from ainote.tools.tool_search import MCP_TOOL_NAMES
+    from ainote.tools.core.tool_search import MCP_TOOL_NAMES
 
     MCP_TOOL_NAMES.clear()
     _patch_client(monkeypatch)

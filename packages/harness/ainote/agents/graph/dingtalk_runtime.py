@@ -43,10 +43,10 @@ from datetime import datetime, timezone
 
 from langgraph.prebuilt import ToolNode
 
-from ainote.agents.memory import get_dingtalk_config, put_dingtalk_config
+from ainote.agents.graph.memory import get_dingtalk_config, put_dingtalk_config
 from ainote.tools import ALL_TOOLS
-from ainote.tools.mcp_loader import load_mcp_tools
-from ainote.tools.tool_search import DeferredToolSetup, build_deferred_tool_setup
+from ainote.tools.core.mcp_loader import load_mcp_tools
+from ainote.tools.core.tool_search import DeferredToolSetup, build_deferred_tool_setup
 
 logger = logging.getLogger(__name__)
 

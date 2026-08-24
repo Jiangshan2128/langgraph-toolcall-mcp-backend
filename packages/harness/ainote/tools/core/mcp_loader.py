@@ -48,8 +48,13 @@ _MCP_CONFIG_NAMES = ("mcp_servers.json", "extensions_config.json")
 
 
 def _project_root() -> Path:
-    """Return the project root (parent of ``app/``)."""
-    return Path(__file__).resolve().parents[4]
+    """Return the project root (parent of ``app/``).
+
+    mcp_loader.py sits at
+    backend/packages/harness/ainote/tools/core/, so parents[5]
+    is the backend root regardless of CWD.
+    """
+    return Path(__file__).resolve().parents[5]
 
 
 def _resolve_config_path() -> Path | None:
@@ -262,7 +267,7 @@ async def load_mcp_tools(
     # manages registration itself (per-user loads must not touch the global
     # MCP_TOOL_NAMES set).
     if register:
-        from ainote.tools.tool_search import register_mcp_tools
+        from ainote.tools.core.tool_search import register_mcp_tools
 
         register_mcp_tools(tools)
 

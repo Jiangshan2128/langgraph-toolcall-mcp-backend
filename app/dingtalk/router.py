@@ -32,7 +32,7 @@ from app.dingtalk.oauth import (
     get_user_unionid,
     _verify_state,
 )
-from ainote.agents.memory import put_dingtalk_token
+from ainote.agents.graph.memory import put_dingtalk_token
 from ainote.agents.graph.dingtalk_runtime import (
     DingTalkConfigError,
     DingTalkError,

@@ -7,7 +7,8 @@ Import directly from submodules to avoid circular dependencies::
 
     from ainote.agents.graph.builder import build_graph
     from ainote.agents.graph.state import AgentState
-    from ainote.agents.graph.nodes import agent_node, hitl_node
+    from ainote.agents.graph.nodes.agent_node import agent_node
+    from ainote.agents.graph.nodes.hitl_node import hitl_node
 
 ``builder`` no longer exposes a module-level ``graph`` singleton — the graph is
 built by ``create_app_context`` at startup and injected via ``Depends``.
@@ -23,11 +24,11 @@ def __getattr__(name: str):
 
         return build_graph
     if name == "agent_node":
-        from ainote.agents.graph.nodes import agent_node
+        from ainote.agents.graph.nodes.agent_node import agent_node
 
         return agent_node
     if name == "hitl_node":
-        from ainote.agents.graph.nodes import hitl_node
+        from ainote.agents.graph.nodes.hitl_node import hitl_node
 
         return hitl_node
     if name == "AgentState":
