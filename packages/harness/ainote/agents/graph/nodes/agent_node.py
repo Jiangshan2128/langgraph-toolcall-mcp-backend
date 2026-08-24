@@ -5,7 +5,6 @@ from langgraph.runtime import Runtime
 
 from ainote.agents.models import Configuration
 from ainote.agents.graph.nodes.middleware import (
-    ErrorHandlingMiddleware,
     MemoryLoadMiddleware,
     Pipeline,
     SystemPromptMiddleware,
@@ -52,12 +51,13 @@ _pipeline: Pipeline | None = None
 def create_pipeline() -> Pipeline:
     """Pure factory — no import-time side effects, no I/O.
 
-    Order matters: outermost first, innermost last. Error handling MUST be
-    outermost to catch everything.
+    Order matters: outermost first, innermost last. The middlewares are pure
+    "prepare" layers (load memories → build prompt → bind tools); fault
+    tolerance (retry/timeout/error handling) lives at the graph level in
+    ``graph/fault_tolerance.py``, not in the pipeline.
     """
     return Pipeline(
         middlewares=[
-            ErrorHandlingMiddleware(),
             MemoryLoadMiddleware(),
             SystemPromptMiddleware(),
             ToolBindingMiddleware(),
@@ -107,8 +107,9 @@ async def agent_node(
 
     Implementation delegates to a middleware pipeline for separation of
     concerns. Each middleware handles one aspect of the request lifecycle:
-    error handling, memory loading, system prompt construction, and tool
-    binding.
+    memory loading, system prompt construction, and tool binding. Fault
+    tolerance (retry/timeout/error handling) is applied by the graph runtime
+    (see ``graph/fault_tolerance.py``), not by the pipeline.
 
     Before the pipeline runs, per-user DingTalk tools are ensured (idempotent):
     the first turn after a restart lazily loads the user's enabled DingTalk MCP
