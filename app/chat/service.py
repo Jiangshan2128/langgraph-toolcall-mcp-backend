@@ -7,9 +7,9 @@ from fastapi import Depends
 from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.types import Command
 
-from ainote.agents.models import Configuration
+from ainote.agents.graph.model.model import Configuration
 from ainote.agents.graph.state import AgentState
-from ainote.agents.memory import get_tasks
+from ainote.agents.graph.memory import get_tasks
 from app.chat.thread import resolve_thread_id
 from app.common.content_safety import filter_risky_reply
 from app.common.dependencies import GraphDep, StoreDep

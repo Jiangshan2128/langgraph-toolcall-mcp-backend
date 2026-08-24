@@ -5,7 +5,7 @@ from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langgraph.runtime import Runtime
 from langgraph.types import interrupt
 
-from ainote.agents.models import Configuration
+from ainote.agents.graph.model.model import Configuration
 from ainote.agents.debug_utils import (
     build_hitl_summary,
     print_approval_result,
@@ -13,7 +13,7 @@ from ainote.agents.debug_utils import (
     print_proposed_tasks,
 )
 from ainote.agents.graph.state import AgentState
-from ainote.agents.memory import (
+from ainote.agents.graph.memory import (
     delete_task as _delete_task,
     put_tasks,
 )

@@ -5,9 +5,9 @@ from langgraph.prebuilt.tool_node import InjectedState, InjectedStore
 from langgraph.store.base import BaseStore
 
 from ainote.agents.graph.state import AgentState
-from ainote.agents.memory import delete_task as _delete_task
-from ainote.agents.memory import get_tasks
-from ainote.agents.memory import update_task as _update_task
+from ainote.agents.graph.memory import delete_task as _delete_task
+from ainote.agents.graph.memory import get_tasks
+from ainote.agents.graph.memory import update_task as _update_task
 
 
 def _user_id(state: AgentState) -> str:

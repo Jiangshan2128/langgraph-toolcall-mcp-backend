@@ -21,8 +21,8 @@ from langchain_core.language_models import BaseChatModel
 from langchain_deepseek import ChatDeepSeek
 from langchain_openai import ChatOpenAI
 
-from ainote.config.model_failover import FailoverChatModel
-from ainote.config.model_provider import ModelConfigYAML, ModelProvider
+from ainote.agents.graph.model.model_failover import FailoverChatModel
+from ainote.agents.graph.model.model_provider import ModelConfigYAML, ModelProvider
 
 logger = logging.getLogger(__name__)
 
@@ -98,9 +98,10 @@ def _find_config_path() -> Path | None:
         return Path(env)
     for cand in (
         Path.cwd() / "config.yaml",
-        # model_factory.py sits at backend/packages/harness/ainote/config/,
-        # so parents[4] is the backend root regardless of CWD.
-        Path(__file__).resolve().parents[4] / "config.yaml",
+        # model_factory.py sits at
+        # backend/packages/harness/ainote/agents/graph/model/, so parents[6]
+        # is the backend root regardless of CWD.
+        Path(__file__).resolve().parents[6] / "config.yaml",
     ):
         if cand.is_file():
             return cand

@@ -67,12 +67,16 @@ Key capabilities:
 │
 ├── packages/harness/ainote/              <- LLM/Agent core
 │   ├── agents/
-│   │   ├── models.py                    <- Configuration, get_model()
-│   │   ├── prompts.py                   <- System prompt, TrustCall instruction, etc.
-│   │   ├── memory.py                    <- Store access layer (profile, tasks, instructions)
 │   │   ├── debug_utils.py               <- HITL debug printing utilities
 │   │   └── graph/
 │   │       ├── __init__.py              <- Lazy re-exports (avoid circular imports)
+│   │       ├── prompts.py               <- System prompt, TrustCall instruction, etc.
+│   │       ├── memory.py                <- Store access layer (profile, tasks, instructions)
+│   │       ├── model/
+│   │       │   ├── model.py             <- Configuration, get_model() (config-driven, failover)
+│   │       │   ├── model_factory.py     <- config.yaml multi-provider factory (fallback chains)
+│   │       │   ├── model_failover.py    <- FailoverChatModel (transient-error failover)
+│   │       │   └── model_provider.py    <- ModelProvider/ModelConfigYAML pydantic models
 │   │       ├── builder.py               <- Pure factories: create_runtime(), build_graph() (no import-time side effects)
 │   │       ├── fault_tolerance.py       <- Graph-level retry/timeout/error-handler config (retry_on, RETRY_POLICY, graph_error_handler)
 │   │       ├── dingtalk_runtime.py      <- Per-user DingTalk MCP runtime registry (class owning injected store)
@@ -91,16 +95,17 @@ Key capabilities:
 │   │               └── tool_binding.py  <- Bind ChatOpenAI with tool list via tool_binder
 │   │
 │   ├── tools/
-│   │   ├── __init__.py                 <- ALL_TOOLS list (8 core tools)
-│   │   ├── mcp_loader.py               <- Load MCP server tools from mcp_servers.json
-│   │   ├── tool_search.py              <- Deferred DingTalk MCP tool search & promotion
+│   │   ├── __init__.py                 <- ALL_TOOLS list (9 core tools) + remove_tools_by_name
 │   │   ├── core/
 │   │   │   ├── memory.py               <- update_profile, update_tasks, update_instructions (TrustCall)
 │   │   │   │                             Also defines Profile & Task Pydantic models
-│   │   │   └── tasks.py                <- get_tasks, mark_task_done, update_task_priority, delete_task_by_title
+│   │   │   ├── tasks.py                <- get_tasks, mark_task_done, update_task_priority, delete_task_by_title
+│   │   │   ├── time.py                 <- get_current_time
+│   │   │   ├── mcp_loader.py           <- Load MCP server tools from mcp_servers.json
+│   │   │   └── tool_search.py          <- Deferred DingTalk MCP tool search & promotion
 │   │   └── community/
 │   │       ├── search.py               <- web_search (Tavily)
-│   │       └── __init__.py
+│   │       └── __init__.py             <- Re-exports web_search + load_mcp_tools
 │   │
 │   ├── config/
 │   │   ├── __init__.py                 <- Re-exports from focused config modules
@@ -130,6 +135,12 @@ Key capabilities:
 | File | Purpose |
 |------|---------|
 | `builder.py` | Pure factories: `create_runtime()` → `(store, checkpointer, pool)`; `build_graph(store=, checkpointer=)`. No module globals / import-time side effects |
+| `memory.py` | Store access layer: profile/tasks/instructions/dingtalk namespaces |
+| `prompts.py` | System prompt, TrustCall instruction, etc. |
+| `model/model.py` | `Configuration` (runtime config) + `get_model()` (config-driven, with failover) |
+| `model/model_factory.py` | config.yaml multi-provider factory: `create_model` / `create_model_with_failover`, provider registry, `fallback_to` chains (cycle-safe) |
+| `model/model_failover.py` | `FailoverChatModel`: transient-error failover over a model chain (retries 5xx/429/timeout; 4xx propagate) |
+| `model/model_provider.py` | `ModelProvider` / `ModelConfigYAML` pydantic models (incl. `fallback_to` cycle validation) |
 | `dingtalk_runtime.py` | `DingTalkRuntime` class owning the injected store + per-user registry; module-level `configure_runtime()`/`get_runtime()` pointer for graph internals |
 | `state.py` | AgentState definition (messages, user_id, metadata, audio) |
 | `tool_binder.py` | `get_model_with_tools()`: selects core + promoted MCP tools to bind to LLM |
